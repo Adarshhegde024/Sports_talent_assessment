@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { getAssessment } from "@/lib/api";
 import { DISCLAIMER } from "@/data/mock";
 
-export const Route = createFileRoute("/assessments/$slug")({
+export const Route = createFileRoute("/assessments/$slug/")({
   head: () => ({
     meta: [
       { title: "Assessment instructions — SportSense AI" },
@@ -32,7 +32,7 @@ const setup = [
 ];
 
 function AssessmentDetail() {
-  const { slug } = useParams({ from: "/assessments/$slug" });
+  const { slug } = useParams({ from: "/assessments/$slug/" });
   const { data, isLoading } = useQuery({
     queryKey: ["assessment", slug],
     queryFn: () => getAssessment(slug),
