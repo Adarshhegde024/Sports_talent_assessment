@@ -14,6 +14,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AssessmentsIndexRouteImport } from './routes/assessments.index'
 import { Route as AssessmentsSlugIndexRouteImport } from './routes/assessments.$slug.index'
+import { Route as AssessmentsSlugRecordRouteImport } from './routes/assessments.$slug.record'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,12 +41,18 @@ const AssessmentsSlugIndexRoute = AssessmentsSlugIndexRouteImport.update({
   path: '/assessments/$slug/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AssessmentsSlugRecordRoute = AssessmentsSlugRecordRouteImport.update({
+  id: '/assessments/$slug/record',
+  path: '/assessments/$slug/record',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/onboarding': typeof OnboardingRoute
   '/assessments/': typeof AssessmentsIndexRoute
+  '/assessments/$slug/record': typeof AssessmentsSlugRecordRoute
   '/assessments/$slug/': typeof AssessmentsSlugIndexRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/onboarding': typeof OnboardingRoute
   '/assessments': typeof AssessmentsIndexRoute
+  '/assessments/$slug/record': typeof AssessmentsSlugRecordRoute
   '/assessments/$slug': typeof AssessmentsSlugIndexRoute
 }
 export interface FileRoutesById {
@@ -61,20 +69,33 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/onboarding': typeof OnboardingRoute
   '/assessments/': typeof AssessmentsIndexRoute
+  '/assessments/$slug/record': typeof AssessmentsSlugRecordRoute
   '/assessments/$slug/': typeof AssessmentsSlugIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/dashboard' | '/onboarding' | '/assessments/' | '/assessments/$slug/'
+    | '/'
+    | '/dashboard'
+    | '/onboarding'
+    | '/assessments/'
+    | '/assessments/$slug/record'
+    | '/assessments/$slug/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/onboarding' | '/assessments' | '/assessments/$slug'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/onboarding'
+    | '/assessments'
+    | '/assessments/$slug/record'
+    | '/assessments/$slug'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/onboarding'
     | '/assessments/'
+    | '/assessments/$slug/record'
     | '/assessments/$slug/'
   fileRoutesById: FileRoutesById
 }
@@ -83,6 +104,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   OnboardingRoute: typeof OnboardingRoute
   AssessmentsIndexRoute: typeof AssessmentsIndexRoute
+  AssessmentsSlugRecordRoute: typeof AssessmentsSlugRecordRoute
   AssessmentsSlugIndexRoute: typeof AssessmentsSlugIndexRoute
 }
 
@@ -123,6 +145,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssessmentsSlugIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/assessments/$slug/record': {
+      id: '/assessments/$slug/record'
+      path: '/assessments/$slug/record'
+      fullPath: '/assessments/$slug/record'
+      preLoaderRoute: typeof AssessmentsSlugRecordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -131,6 +160,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   OnboardingRoute: OnboardingRoute,
   AssessmentsIndexRoute: AssessmentsIndexRoute,
+  AssessmentsSlugRecordRoute: AssessmentsSlugRecordRoute,
   AssessmentsSlugIndexRoute: AssessmentsSlugIndexRoute,
 }
 export const routeTree = rootRouteImport
