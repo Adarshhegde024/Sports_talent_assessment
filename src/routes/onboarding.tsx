@@ -114,8 +114,10 @@ function Onboarding() {
               <div className="space-y-2">
                 <Label>Gender</Label>
                 <Select
-                  value={form.gender}
-                  onValueChange={(v) => setForm({ ...form, gender: v as AthleteProfile["gender"] })}
+                  value={form.gender ?? "prefer-not-to-say"}
+                  onValueChange={(v) =>
+                    setForm({ ...form, gender: v as NonNullable<AthleteProfile["gender"]> })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
