@@ -61,7 +61,7 @@ function ResultsPage() {
               <span className="readout text-5xl">{data.headline.value}</span>
               <span className="text-sm text-muted-foreground">{data.headline.unit}</span>
             </p>
-            <div className="mt-6 grid grid-cols-3 gap-4">
+            <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
               {data.attempts.map((attempt) => (
                 <div key={attempt.label} className="rounded-xl bg-secondary/60 p-3">
                   <p className="label-meta text-muted-foreground">{attempt.label}</p>
@@ -112,7 +112,7 @@ function ResultsPage() {
 
         <div className="mt-6 flex flex-wrap gap-3">
           <Button asChild>
-            <Link to="/assessments/$slug" params={{ slug: "vertical-jump" }}>
+            <Link to="/assessments/$slug" params={{ slug: data.assessmentId }}>
               Retake assessment
               <ArrowRight className="size-4" />
             </Link>

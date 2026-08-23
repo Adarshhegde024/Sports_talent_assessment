@@ -18,6 +18,7 @@ import {
   ASSESSMENT_HISTORY,
   ATHLETIC_METRICS,
   DEFAULT_PROFILE,
+  RESULTS_BY_ASSESSMENT,
   SAMPLE_RESULTS,
 } from "@/data/mock";
 import type {
@@ -120,5 +121,12 @@ export async function uploadAttempts(
 /** GET /api/assessments/{id}/results */
 export async function getResults(runId: string): Promise<AssessmentResults> {
   await delay(400);
-  return { ...SAMPLE_RESULTS, id: runId };
+  // Local run ids look like `local-<assessmentId>-<timestamp>`; history runs are
+  // resolved through their recorded assessment id.
+  const fromHistory = ASSESSMENT_HISTORY.find((run) => run.id === runId)?.assessmentId;
+  const matched = Object.keys(RESULTS_BY_ASSESSMENT).find(
+    (assessmentId) => assessmentId === fromHistory || runId.includes(assessmentId),
+  );
+  const base = (matched && RESULTS_BY_ASSESSMENT[matched]) || SAMPLE_RESULTS;
+  return { ...base, id: runId };
 }

@@ -35,8 +35,8 @@ function AssessmentsPage() {
         <p className="label-meta text-muted-foreground">Test library</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Assessments</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Each protocol is fixed so your results stay comparable between sessions. More assessments
-          are being validated and will unlock over time.
+          Each protocol is fixed so your results stay comparable between sessions. All five
+          assessments are open — start with any of them.
         </p>
 
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">

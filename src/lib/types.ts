@@ -22,6 +22,10 @@ export interface AssessmentDefinition {
   difficulty: "Beginner" | "Intermediate" | "Advanced";
   objective: string;
   metricLabel: string;
+  /** Ordered protocol steps shown on the instructions screen. */
+  protocol: string[];
+  /** Assessment-specific setup guidance (phone placement, space, lighting). */
+  setup: { title: string; body: string }[];
 }
 
 export interface AssessmentRun {

@@ -25,11 +25,7 @@ export const Route = createFileRoute("/assessments/$slug/")({
   component: AssessmentDetail,
 });
 
-const setup = [
-  { icon: Smartphone, title: "Phone placement", body: "Stand the phone vertically at hip height, 3 m away." },
-  { icon: Ruler, title: "Clear space", body: "Full body must stay inside the frame for every attempt." },
-  { icon: Sun, title: "Lighting", body: "Even, front-facing light. Avoid backlit windows." },
-];
+const setupIcons = [Smartphone, Ruler, Sun];
 
 function AssessmentDetail() {
   const { slug } = useParams({ from: "/assessments/$slug/" });
@@ -57,24 +53,22 @@ function AssessmentDetail() {
             </div>
 
             <section className="mt-8 grid gap-4 sm:grid-cols-3">
-              {setup.map((item) => (
+              {data.setup.map((item, index) => {
+                const Icon = setupIcons[index % setupIcons.length]!;
+                return (
                 <div key={item.title} className="rounded-2xl border border-border bg-card p-5">
-                  <item.icon className="size-4 text-primary" />
+                  <Icon className="size-4 text-primary" />
                   <h2 className="mt-3 text-sm font-semibold">{item.title}</h2>
                   <p className="mt-1 text-xs text-muted-foreground">{item.body}</p>
                 </div>
-              ))}
+                );
+              })}
             </section>
 
             <section className="mt-6 rounded-2xl border border-border bg-card p-6">
               <h2 className="text-base font-semibold">Protocol</h2>
               <ol className="mt-4 space-y-3">
-                {[
-                  "Warm up for two minutes with light mobility work.",
-                  "Stand still inside the frame until the countdown ends.",
-                  "Perform a maximal countermovement jump, landing on both feet.",
-                  "Reset and repeat until all attempts are recorded.",
-                ].map((line, i) => (
+                {data.protocol.map((line, i) => (
                   <li key={line} className="flex gap-3 text-sm text-muted-foreground">
                     <span className="readout text-xs text-primary">0{i + 1}</span>
                     {line}
