@@ -112,7 +112,7 @@ function ResultsPage() {
 
         <div className="mt-6 flex flex-wrap gap-3">
           <Button asChild>
-            <Link to="/assessments/$slug" params={{ slug: "vertical-jump" }}>
+            <Link to="/assessments/$slug" params={{ slug: data.assessmentId }}>
               Retake assessment
               <ArrowRight className="size-4" />
             </Link>
