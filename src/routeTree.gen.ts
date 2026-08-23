@@ -11,8 +11,12 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as HistoryRouteImport } from './routes/history'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AssessmentsIndexRouteImport } from './routes/assessments.index'
+import { Route as ResultsRunIdRouteImport } from './routes/results.$runId'
 import { Route as AssessmentsSlugIndexRouteImport } from './routes/assessments.$slug.index'
 import { Route as AssessmentsSlugRecordRouteImport } from './routes/assessments.$slug.record'
 
@@ -26,14 +30,34 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProfileRoute = ProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AssessmentsIndexRoute = AssessmentsIndexRouteImport.update({
   id: '/assessments/',
   path: '/assessments/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResultsRunIdRoute = ResultsRunIdRouteImport.update({
+  id: '/results/$runId',
+  path: '/results/$runId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AssessmentsSlugIndexRoute = AssessmentsSlugIndexRouteImport.update({
@@ -50,7 +74,11 @@ const AssessmentsSlugRecordRoute = AssessmentsSlugRecordRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/history': typeof HistoryRoute
   '/onboarding': typeof OnboardingRoute
+  '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
+  '/results/$runId': typeof ResultsRunIdRoute
   '/assessments/': typeof AssessmentsIndexRoute
   '/assessments/$slug/record': typeof AssessmentsSlugRecordRoute
   '/assessments/$slug/': typeof AssessmentsSlugIndexRoute
@@ -58,7 +86,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/history': typeof HistoryRoute
   '/onboarding': typeof OnboardingRoute
+  '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
+  '/results/$runId': typeof ResultsRunIdRoute
   '/assessments': typeof AssessmentsIndexRoute
   '/assessments/$slug/record': typeof AssessmentsSlugRecordRoute
   '/assessments/$slug': typeof AssessmentsSlugIndexRoute
@@ -67,7 +99,11 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/history': typeof HistoryRoute
   '/onboarding': typeof OnboardingRoute
+  '/profile': typeof ProfileRoute
+  '/settings': typeof SettingsRoute
+  '/results/$runId': typeof ResultsRunIdRoute
   '/assessments/': typeof AssessmentsIndexRoute
   '/assessments/$slug/record': typeof AssessmentsSlugRecordRoute
   '/assessments/$slug/': typeof AssessmentsSlugIndexRoute
@@ -77,7 +113,11 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/dashboard'
+    | '/history'
     | '/onboarding'
+    | '/profile'
+    | '/settings'
+    | '/results/$runId'
     | '/assessments/'
     | '/assessments/$slug/record'
     | '/assessments/$slug/'
@@ -85,7 +125,11 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/dashboard'
+    | '/history'
     | '/onboarding'
+    | '/profile'
+    | '/settings'
+    | '/results/$runId'
     | '/assessments'
     | '/assessments/$slug/record'
     | '/assessments/$slug'
@@ -93,7 +137,11 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/dashboard'
+    | '/history'
     | '/onboarding'
+    | '/profile'
+    | '/settings'
+    | '/results/$runId'
     | '/assessments/'
     | '/assessments/$slug/record'
     | '/assessments/$slug/'
@@ -102,7 +150,11 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  HistoryRoute: typeof HistoryRoute
   OnboardingRoute: typeof OnboardingRoute
+  ProfileRoute: typeof ProfileRoute
+  SettingsRoute: typeof SettingsRoute
+  ResultsRunIdRoute: typeof ResultsRunIdRoute
   AssessmentsIndexRoute: typeof AssessmentsIndexRoute
   AssessmentsSlugRecordRoute: typeof AssessmentsSlugRecordRoute
   AssessmentsSlugIndexRoute: typeof AssessmentsSlugIndexRoute
@@ -124,6 +176,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -131,11 +190,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/profile': {
+      id: '/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/assessments/': {
       id: '/assessments/'
       path: '/assessments'
       fullPath: '/assessments/'
       preLoaderRoute: typeof AssessmentsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/results/$runId': {
+      id: '/results/$runId'
+      path: '/results/$runId'
+      fullPath: '/results/$runId'
+      preLoaderRoute: typeof ResultsRunIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/assessments/$slug/': {
@@ -158,7 +238,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  HistoryRoute: HistoryRoute,
   OnboardingRoute: OnboardingRoute,
+  ProfileRoute: ProfileRoute,
+  SettingsRoute: SettingsRoute,
+  ResultsRunIdRoute: ResultsRunIdRoute,
   AssessmentsIndexRoute: AssessmentsIndexRoute,
   AssessmentsSlugRecordRoute: AssessmentsSlugRecordRoute,
   AssessmentsSlugIndexRoute: AssessmentsSlugIndexRoute,
