@@ -199,3 +199,111 @@ export const SAMPLE_RESULTS: AssessmentResults = {
 
 export const DISCLAIMER =
   "Sport suitability results are recommendations based on assessed performance characteristics and should not be treated as professional medical or sports-selection advice.";
+
+/** Mock result sets per assessment, keyed by assessment id. */
+export const RESULTS_BY_ASSESSMENT: Record<string, AssessmentResults> = {
+  "vertical-jump": SAMPLE_RESULTS,
+  squat: {
+    id: "run-2001",
+    assessmentId: "squat",
+    assessmentName: "Squat",
+    date: "2026-08-20",
+    headline: { value: 82, unit: "/100", label: "Depth score" },
+    attempts: [
+      { label: "Rep 1", value: 78, unit: "/100" },
+      { label: "Rep 2", value: 84, unit: "/100" },
+      { label: "Rep 3", value: 85, unit: "/100" },
+    ],
+    average: { value: 82, unit: "/100" },
+    metrics: [
+      { key: "depth", label: "Squat Depth", value: 82, unit: "/100" },
+      { key: "knee-tracking", label: "Knee Alignment", value: 74, unit: "/100" },
+      { key: "tempo", label: "Tempo Consistency", value: 88, unit: "/100" },
+    ],
+    suitability: [
+      { sport: "Weightlifting", score: 88 },
+      { sport: "Rugby", score: 81 },
+      { sport: "Rowing", score: 77 },
+      { sport: "Football", score: 70 },
+    ],
+    explanation:
+      "Depth and tempo were consistent across repetitions, indicating good lower-body control. Knee alignment drifted slightly inward on the final reps, which is common as fatigue builds.",
+    isSample: true,
+  },
+  "single-leg-balance": {
+    id: "run-2002",
+    assessmentId: "single-leg-balance",
+    assessmentName: "Single-Leg Balance",
+    date: "2026-08-20",
+    headline: { value: 91, unit: "/100", label: "Stability index" },
+    attempts: [
+      { label: "Left leg", value: 89, unit: "/100" },
+      { label: "Right leg", value: 93, unit: "/100" },
+    ],
+    average: { value: 91, unit: "/100" },
+    metrics: [
+      { key: "balance", label: "Postural Control", value: 91, unit: "/100" },
+      { key: "symmetry", label: "Left/Right Symmetry", value: 86, unit: "/100" },
+      { key: "sway", label: "Sway Control", value: 83, unit: "/100" },
+    ],
+    suitability: [
+      { sport: "Gymnastics", score: 90 },
+      { sport: "Martial Arts", score: 84 },
+      { sport: "Skiing", score: 79 },
+      { sport: "Tennis", score: 72 },
+    ],
+    explanation:
+      "Postural control was strong on both legs with only a small left-to-right difference, suggesting a balanced base for sports that demand single-leg stability.",
+    isSample: true,
+  },
+  "push-up": {
+    id: "run-2003",
+    assessmentId: "push-up",
+    assessmentName: "Push-Up",
+    date: "2026-08-20",
+    headline: { value: 34, unit: "reps", label: "Valid repetitions" },
+    attempts: [{ label: "Set 1", value: 34, unit: "reps" }],
+    average: { value: 34, unit: "reps" },
+    metrics: [
+      { key: "strength", label: "Upper-Body Strength", value: 79, unit: "/100" },
+      { key: "rom", label: "Range of Motion", value: 85, unit: "/100" },
+      { key: "endurance", label: "Muscular Endurance", value: 73, unit: "/100" },
+    ],
+    suitability: [
+      { sport: "Swimming", score: 85 },
+      { sport: "Rugby", score: 80 },
+      { sport: "Climbing", score: 76 },
+      { sport: "Boxing", score: 71 },
+    ],
+    explanation:
+      "Range of motion held up well through most of the set, with rep speed slowing in the final ten seconds — a normal endurance-limited pattern.",
+    isSample: true,
+  },
+  "side-to-side-agility": {
+    id: "run-2004",
+    assessmentId: "side-to-side-agility",
+    assessmentName: "Side-to-Side Agility",
+    date: "2026-08-20",
+    headline: { value: 27, unit: "contacts", label: "Line contacts in 20 s" },
+    attempts: [
+      { label: "Attempt 1", value: 25, unit: "contacts" },
+      { label: "Attempt 2", value: 27, unit: "contacts" },
+      { label: "Attempt 3", value: 26, unit: "contacts" },
+    ],
+    average: { value: 26, unit: "contacts" },
+    metrics: [
+      { key: "agility", label: "Lateral Speed", value: 84, unit: "/100" },
+      { key: "coordination", label: "Coordination", value: 80, unit: "/100" },
+      { key: "deceleration", label: "Deceleration Control", value: 75, unit: "/100" },
+    ],
+    suitability: [
+      { sport: "Badminton", score: 89 },
+      { sport: "Basketball", score: 83 },
+      { sport: "Tennis", score: 81 },
+      { sport: "Handball", score: 74 },
+    ],
+    explanation:
+      "Change-of-direction speed stayed stable across attempts. Deceleration into each turn is the main area with room to improve.",
+    isSample: true,
+  },
+};
