@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Activity, Camera, Cpu, Lock, ShieldCheck, Target } from "lucide-react";
-import heroImage from "@/assets/hero-jump.jpg";
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import { SportsCarousel } from "@/components/sports/SportsCarousel";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { Button } from "@/components/ui/button";
 import { ASSESSMENTS, DISCLAIMER } from "@/data/mock";
@@ -98,26 +98,8 @@ function Landing() {
               </div>
             </div>
 
-            <div className="relative flex-1">
-              <div className="relative aspect-[4/3] overflow-hidden rounded-xl ring-1 ring-black/5">
-                <img
-                  src={heroImage}
-                  width={1200}
-                  height={912}
-                  alt="Athlete performing a vertical jump with a movement-analysis overlay showing jump metrics"
-                  className="size-full object-cover"
-                />
-                <div className="pointer-events-none absolute inset-4 flex flex-col justify-between border border-primary/20">
-                  <div className="flex justify-between">
-                    <span className="size-5 border-l-2 border-t-2 border-primary" />
-                    <span className="size-5 border-r-2 border-t-2 border-primary" />
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="size-5 border-b-2 border-l-2 border-primary" />
-                    <span className="size-5 border-b-2 border-r-2 border-primary" />
-                  </div>
-                </div>
-              </div>
+            <div className="relative w-full min-w-0 flex-1">
+              <SportsCarousel />
             </div>
           </div>
         </div>
