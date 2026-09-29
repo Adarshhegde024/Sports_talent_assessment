@@ -1,5 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Activity, Camera, Cpu, Lock, ShieldCheck, Target } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  Camera,
+  Cpu,
+  Lock,
+  Play,
+  ShieldCheck,
+  Target,
+  TrendingUp,
+  Trophy,
+  Video,
+} from "lucide-react";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SportsCarousel } from "@/components/sports/SportsCarousel";
 import { SiteFooter } from "@/components/layout/SiteFooter";
@@ -27,19 +39,22 @@ export const Route = createFileRoute("/")({
 
 const steps = [
   {
-    index: "01 / PERFORM",
+    step: "01",
     title: "Perform",
     body: "Record standardized fitness assessments using your smartphone.",
+    icon: Video,
   },
   {
-    index: "02 / ANALYZE",
+    step: "02",
     title: "Analyze",
     body: "Movement and performance metrics are extracted from your assessment.",
+    icon: TrendingUp,
   },
   {
-    index: "03 / DISCOVER",
+    step: "03",
     title: "Discover",
-    body: "Receive personalized sport suitability recommendations.",
+    body: "Receive personalized sport suitability recommendations that match your profile.",
+    icon: Trophy,
   },
 ];
 
@@ -66,57 +81,94 @@ const features = [
   },
 ];
 
+import { useAuth } from "@/lib/auth-context";
+import { useEffect } from "react";
+import { useNavigate } from "@tanstack/react-router";
+
 function Landing() {
+  const { user, isLoading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      navigate({ to: "/dashboard" });
+    }
+  }, [user, isLoading, navigate]);
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       <SiteHeader />
 
-      <section className="relative overflow-hidden py-20 lg:py-28">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="flex flex-col gap-12 lg:flex-row lg:items-center">
-            <div className="flex-1">
-              <div className="mb-8 inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 ring-1 ring-border">
-                <span className="size-2 animate-pulse rounded-full bg-primary" />
-                <span className="label-meta text-foreground/70">
-                  Frontend prototype — AI model not connected
-                </span>
-              </div>
-              <h1 className="text-balance text-4xl font-semibold leading-none tracking-tight sm:text-5xl lg:text-7xl">
-                Discover Your Athletic Potential
-              </h1>
-              <p className="mt-8 max-w-[48ch] text-pretty text-lg leading-normal text-muted-foreground">
-                Assess your movement, measure your performance, and discover which sports match your
-                athletic profile.
-              </p>
-              <div className="mt-10 flex flex-wrap gap-4">
-                <Button asChild size="lg">
-                  <Link to="/onboarding">Start Assessment</Link>
-                </Button>
-                <Button asChild size="lg" variant="outline">
-                  <a href="#how-it-works">How It Works</a>
-                </Button>
-              </div>
-            </div>
+      {/* Hero Section */}
+      <section className="relative overflow-hidden pt-6 pb-14 sm:pt-8 sm:pb-16 lg:pt-10 lg:pb-20">
+        <div className="mx-auto max-w-[94rem] px-4 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl text-center flex flex-col items-center">
+            {/* Headline */}
+            <h1 className="text-balance text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.08]">
+              Discover Your <br />
+              <span className="text-emerald-600 dark:text-emerald-400">Athletic Potential</span>
+            </h1>
 
-            <div className="relative w-full min-w-0 flex-1">
-              <SportsCarousel />
+            {/* Subtitle */}
+            <p className="mt-4 max-w-2xl text-pretty text-base sm:text-lg text-muted-foreground leading-relaxed">
+              Assess your movement, measure your performance, and discover which sports match your
+              athletic profile.
+            </p>
+
+            {/* CTAs */}
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3.5 sm:gap-4">
+              <Button
+                asChild
+                size="lg"
+                className="h-11 sm:h-12 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md hover:shadow-lg transition-all"
+              >
+                <Link to={user ? "/assessments/vertical-jump" : "/login"} className="flex items-center gap-2">
+                  <span>Start Assessment</span>
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="h-11 sm:h-12 px-6 rounded-xl border-border bg-card/60 hover:bg-muted font-semibold transition-all backdrop-blur-sm"
+              >
+                <a href="#how-it-works" className="flex items-center gap-2">
+                  <Play className="size-3.5 fill-current text-muted-foreground" />
+                  How It Works
+                </a>
+              </Button>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section id="how-it-works" className="border-y border-border bg-card py-20">
-        <div className="mx-auto max-w-7xl px-6 lg:px-8">
-          <div className="grid grid-cols-1 gap-12 md:grid-cols-3">
-            {steps.map((step) => (
-              <div key={step.title} className="flex flex-col gap-4">
-                <span className="font-mono text-xs font-semibold text-primary">{step.index}</span>
-                <h3 className="text-xl font-semibold">{step.title}</h3>
-                <p className="max-w-[40ch] text-pretty text-sm leading-normal text-muted-foreground">
-                  {step.body}
-                </p>
-              </div>
-            ))}
+          {/* Sports Showcase Carousel (Wider and Taller Showcase) */}
+          <div className="mx-auto mt-8 sm:mt-10 w-full max-w-[92rem]">
+            <SportsCarousel />
+          </div>
+
+          {/* Three-step Cards underneath Carousel (matches screenshot) */}
+          <div id="how-it-works" className="mx-auto mt-10 sm:mt-14 max-w-[92rem] scroll-mt-24">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+              {steps.map((step) => (
+                <div
+                  key={step.step}
+                  className="flex items-start gap-4 p-5 sm:p-6 rounded-2xl border border-border/80 bg-card shadow-xs transition-all hover:shadow-md hover:border-emerald-500/30"
+                >
+                  <div className="flex size-12 sm:size-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/20">
+                    <step.icon className="size-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      {step.step}
+                    </span>
+                    <h3 className="text-lg font-bold tracking-tight text-foreground">{step.title}</h3>
+                    <p className="mt-1 text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                      {step.body}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -178,7 +230,7 @@ function Landing() {
         </div>
       </section>
 
-      <section className="py-20">
+      <section id="why-sportsense" className="py-20 scroll-mt-24">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-6 lg:grid-cols-2 lg:px-8">
           <div>
             <h2 className="text-3xl font-semibold tracking-tight">Why SportSense AI</h2>

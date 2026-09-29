@@ -1,13 +1,46 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import type { AthleteProfile, RecordedAttempt } from "@/lib/types";
 import { DEFAULT_PROFILE } from "@/data/mock";
+import { useAuth } from "@/lib/auth-context";
+import { supabase } from "@/lib/supabase/client";
 
 const PROFILE_KEY = "sportsense.profile";
+
+export function calculateProfileCompleteness(profile: AthleteProfile | null): number {
+  if (!profile) return 0;
+  let score = 0;
+  // Full name (25%)
+  if (profile.name && profile.name.trim().length > 0 && profile.name.trim().toLowerCase() !== "athlete") {
+    score += 25;
+  }
+  // Age (25%)
+  if (profile.age && Number(profile.age) >= 10 && Number(profile.age) <= 100) {
+    score += 25;
+  }
+  // Height (25%)
+  if (profile.heightCm && Number(profile.heightCm) >= 100 && Number(profile.heightCm) <= 250) {
+    score += 25;
+  }
+  // Fitness Level & Gender (25%)
+  if (profile.fitnessLevel || profile.gender) {
+    score += 25;
+  }
+  return Math.min(100, Math.max(0, score));
+}
 
 interface SessionValue {
   profile: AthleteProfile;
   isOnboarded: boolean;
-  saveProfile: (profile: AthleteProfile) => void;
+  isLoading: boolean;
+  saveProfile: (profile: AthleteProfile) => Promise<void>;
   attempts: RecordedAttempt[];
   addAttempt: (attempt: RecordedAttempt) => void;
   removeAttempt: (index: number) => void;
@@ -21,24 +54,203 @@ function readStoredProfile(): { profile: AthleteProfile; onboarded: boolean } {
   try {
     const raw = window.localStorage.getItem(PROFILE_KEY);
     if (!raw) return { profile: DEFAULT_PROFILE, onboarded: false };
-    return { profile: JSON.parse(raw) as AthleteProfile, onboarded: true };
+    const parsed = JSON.parse(raw) as AthleteProfile;
+    // Discard any legacy mock "Marcus" in localStorage
+    if (parsed.name === "Marcus") {
+      return { profile: DEFAULT_PROFILE, onboarded: false };
+    }
+    return { profile: parsed, onboarded: true };
   } catch {
     return { profile: DEFAULT_PROFILE, onboarded: false };
   }
 }
 
 export function AssessmentSessionProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [state, setState] = useState(() => readStoredProfile());
+  const [isLoading, setIsLoading] = useState(false);
   const [attempts, setAttempts] = useState<RecordedAttempt[]>([]);
 
-  const saveProfile = useCallback((profile: AthleteProfile) => {
-    setState({ profile, onboarded: true });
-    try {
-      window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-    } catch {
-      /* storage unavailable — keep in-memory only */
+  // Synchronize profile with Supabase and authenticated user in real time
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!user) {
+      // User is logged out
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.removeItem(PROFILE_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
+      setState({ profile: DEFAULT_PROFILE, onboarded: false });
+      return;
     }
-  }, []);
+
+    const initialName =
+      user.user_metadata?.full_name ||
+      user.user_metadata?.name ||
+      user.email?.split("@")[0] ||
+      "Athlete";
+
+    // Set immediate reactive name from auth metadata
+    setState((prev) => ({
+      profile: {
+        ...prev.profile,
+        name: prev.profile.name === "Athlete" || prev.profile.name === "Marcus" ? initialName : prev.profile.name,
+      },
+      onboarded: prev.onboarded,
+    }));
+
+    setIsLoading(true);
+
+    async function syncRemoteProfile() {
+      try {
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user!.id)
+          .maybeSingle();
+
+        if (profileError) throw profileError;
+
+        if (profileData && isMounted) {
+          // Load preferred sports from user_sports joined table
+          const { data: sportsData } = await supabase
+            .from("user_sports")
+            .select("sports(name)")
+            .eq("user_id", user!.id);
+
+          const preferredSports = (sportsData ?? [])
+            .map((item: any) => item.sports?.name)
+            .filter(Boolean);
+
+          const athleteProfile: AthleteProfile = {
+            name: profileData.full_name || initialName,
+            age: profileData.age ?? 18,
+            heightCm: profileData.height ?? 175,
+            fitnessLevel: profileData.fitness_level || "recreational",
+            preferredSports,
+          };
+
+          setState({
+            profile: athleteProfile,
+            onboarded: Boolean(profileData.disclaimer_accepted || profileData.age),
+          });
+
+          try {
+            window.localStorage.setItem(PROFILE_KEY, JSON.stringify(athleteProfile));
+          } catch {
+            /* ignore */
+          }
+        } else if (!profileData && isMounted) {
+          // Auto-seed profile row for new user in Supabase
+          await supabase
+            .from("profiles")
+            .upsert({
+              id: user!.id,
+              full_name: initialName,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .catch(() => undefined);
+
+          const freshProfile: AthleteProfile = {
+            name: initialName,
+            age: 18,
+            heightCm: 175,
+            fitnessLevel: "recreational",
+            preferredSports: [],
+          };
+
+          setState({
+            profile: freshProfile,
+            onboarded: false,
+          });
+
+          try {
+            window.localStorage.setItem(PROFILE_KEY, JSON.stringify(freshProfile));
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch remote profile, using local fallback:", err);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    syncRemoteProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  const saveProfile = useCallback(
+    async (newProfile: AthleteProfile) => {
+      setState({ profile: newProfile, onboarded: true });
+
+      try {
+        window.localStorage.setItem(PROFILE_KEY, JSON.stringify(newProfile));
+      } catch {
+        /* storage unavailable — keep in-memory */
+      }
+
+      // If user is authenticated, persist to Supabase
+      if (user) {
+        try {
+          // 1. Upsert profile table
+          const { error: profileError } = await supabase.from("profiles").upsert({
+            id: user.id,
+            full_name: newProfile.name,
+            age: newProfile.age,
+            height: newProfile.heightCm,
+            fitness_level: newProfile.fitnessLevel,
+            disclaimer_accepted: true,
+            updated_at: new Date().toISOString(),
+          });
+
+          if (profileError) {
+            console.error("Error saving profile to Supabase:", profileError);
+          }
+
+          // 2. Persist preferred sports if any
+          if (newProfile.preferredSports && newProfile.preferredSports.length > 0) {
+            // Fetch all sports to get their UUIDs
+            const { data: allSports } = await supabase.from("sports").select("id, name");
+
+            if (allSports && allSports.length > 0) {
+              const sportMap = new Map(allSports.map((s: any) => [s.name.toLowerCase(), s.id]));
+
+              // Delete old user_sports
+              await supabase.from("user_sports").delete().eq("user_id", user.id);
+
+              // Insert new user_sports
+              const rowsToInsert = newProfile.preferredSports
+                .map((sportName) => {
+                  const sportId = sportMap.get(sportName.toLowerCase());
+                  return sportId ? { user_id: user.id, sport_id: sportId } : null;
+                })
+                .filter(Boolean);
+
+              if (rowsToInsert.length > 0) {
+                await supabase.from("user_sports").insert(rowsToInsert);
+              }
+            }
+          } else {
+            // Clear sports if user removed all
+            await supabase.from("user_sports").delete().eq("user_id", user.id);
+          }
+        } catch (err) {
+          console.error("Failed to persist athlete profile to Supabase:", err);
+        }
+      }
+    },
+    [user],
+  );
 
   const addAttempt = useCallback((attempt: RecordedAttempt) => {
     setAttempts((current) => [...current.filter((a) => a.index !== attempt.index), attempt]);
@@ -54,13 +266,14 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
     () => ({
       profile: state.profile,
       isOnboarded: state.onboarded,
+      isLoading,
       saveProfile,
       attempts,
       addAttempt,
       removeAttempt,
       resetAttempts,
     }),
-    [state, attempts, saveProfile, addAttempt, removeAttempt, resetAttempts],
+    [state, isLoading, attempts, saveProfile, addAttempt, removeAttempt, resetAttempts],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

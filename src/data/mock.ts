@@ -126,12 +126,12 @@ export const ASSESSMENTS: AssessmentDefinition[] = [
 ];
 
 export const DEFAULT_PROFILE: AthleteProfile = {
-  name: "Marcus",
-  age: 21,
+  name: "Athlete",
+  age: 18,
   gender: "prefer-not-to-say",
-  heightCm: 181,
+  heightCm: 175,
   fitnessLevel: "recreational",
-  preferredSports: ["Basketball", "Athletics"],
+  preferredSports: [],
 };
 
 export const ATHLETIC_METRICS: AthleticMetric[] = [

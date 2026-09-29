@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { listAssessments } from "@/lib/api";
 
 export const Route = createFileRoute("/assessments/")({
@@ -23,7 +24,11 @@ export const Route = createFileRoute("/assessments/")({
       },
     ],
   }),
-  component: AssessmentsPage,
+  component: () => (
+    <ProtectedRoute>
+      <AssessmentsPage />
+    </ProtectedRoute>
+  ),
 });
 
 function AssessmentsPage() {

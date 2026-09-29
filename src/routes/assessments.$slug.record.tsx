@@ -15,7 +15,10 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAssessmentSession } from "@/lib/assessment-session";
 import { createAssessment, uploadAttempts } from "@/lib/api";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ASSESSMENTS } from "@/data/mock";
+import { useQueryClient } from "@tanstack/react-query";
+import { PoseDetectionOverlay } from "@/components/camera/PoseDetectionOverlay";
 
 export const Route = createFileRoute("/assessments/$slug/record")({
   head: () => ({
@@ -32,7 +35,11 @@ export const Route = createFileRoute("/assessments/$slug/record")({
       },
     ],
   }),
-  component: RecordPage,
+  component: () => (
+    <ProtectedRoute>
+      <RecordPage />
+    </ProtectedRoute>
+  ),
 });
 
 type Stage = "check" | "record" | "review" | "processing";
@@ -140,14 +147,19 @@ function RecordPage() {
     recorderRef.current?.state === "recording" && recorderRef.current.stop();
   }, []);
 
+  const queryClient = useQueryClient();
+
   const submit = useCallback(async () => {
     setStage("processing");
-    const run = await createAssessment(definition.id);
-    await uploadAttempts(run.id, attempts, setProgress);
+    const slug = definition.slug || definition.id;
+    const run = await createAssessment(slug);
+    await uploadAttempts(run.id, attempts, setProgress, slug);
+    await queryClient.invalidateQueries({ queryKey: ["metrics"] });
+    await queryClient.invalidateQueries({ queryKey: ["history"] });
     stopStream();
     resetAttempts();
-    navigate({ to: "/results/$runId", params: { runId: "run-1042" } });
-  }, [attempts, definition.id, navigate, resetAttempts, stopStream]);
+    navigate({ to: "/results/$runId", params: { runId: run.id } });
+  }, [attempts, definition.id, definition.slug, navigate, queryClient, resetAttempts, stopStream]);
 
   return (
     <AppShell>
@@ -164,14 +176,17 @@ function RecordPage() {
 
         {stage === "check" && (
           <section className="mt-6 space-y-4">
-            <div className="overflow-hidden rounded-2xl border border-border bg-inverse">
-              <div className="relative aspect-video">
+            <div className="overflow-hidden rounded-2xl border border-border bg-inverse shadow-inner">
+              <div className="relative aspect-[3/4] sm:aspect-video max-h-[70vh]">
                 <video
                   ref={videoRef}
                   playsInline
                   muted
                   className="size-full object-cover"
                 />
+                {permission === "granted" && (
+                  <PoseDetectionOverlay videoRef={videoRef} isRecording={false} />
+                )}
                 {permission !== "granted" && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-inverse-foreground">
                     <Camera className="size-6 text-primary" />
@@ -182,7 +197,7 @@ function RecordPage() {
                           ? "This device or browser does not support camera capture."
                           : "We need access to your camera to record the assessment. Video stays on your device."}
                     </p>
-                    <Button onClick={requestCamera} disabled={permission === "requesting"}>
+                    <Button onClick={requestCamera} disabled={permission === "requesting"} className="active:scale-95 transition-transform">
                       {permission === "requesting" ? (
                         <Loader2 className="size-4 animate-spin" />
                       ) : (
@@ -203,7 +218,7 @@ function RecordPage() {
             </div>
             <Button
               size="lg"
-              className="w-full sm:w-auto"
+              className="w-full sm:w-auto active:scale-95 transition-transform"
               disabled={permission !== "granted"}
               onClick={() => setStage("record")}
             >
@@ -214,12 +229,15 @@ function RecordPage() {
 
         {stage === "record" && (
           <section className="mt-6 space-y-4">
-            <div className="relative overflow-hidden rounded-2xl border border-border bg-inverse">
-              <div className="relative aspect-video">
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-inverse shadow-inner">
+              <div className="relative aspect-[3/4] sm:aspect-video max-h-[70vh]">
                 <video ref={videoRef} playsInline muted className="size-full object-cover" />
+                {permission === "granted" && (
+                  <PoseDetectionOverlay videoRef={videoRef} isRecording={isRecording} />
+                )}
                 <div className="pointer-events-none absolute inset-6 rounded-xl border-2 border-dashed border-primary/70" />
                 <div className="pointer-events-none absolute left-1/2 top-6 bottom-6 w-px -translate-x-1/2 bg-primary/30" />
-                <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-inverse/80 px-3 py-1.5">
+                <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-inverse/80 px-3 py-1.5 backdrop-blur-md">
                   <Circle
                     className={`size-2.5 ${isRecording ? "animate-pulse fill-destructive text-destructive" : "fill-inverse-muted text-inverse-muted"}`}
                   />
@@ -228,7 +246,7 @@ function RecordPage() {
                   </span>
                 </div>
                 {countdown !== null && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-inverse/60">
+                  <div className="absolute inset-0 flex items-center justify-center bg-inverse/60 backdrop-blur-sm">
                     <span className="readout text-7xl text-inverse-foreground">{countdown}</span>
                   </div>
                 )}

@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { ArrowRight, ShieldAlert } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowRight, Loader2, ShieldAlert } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useAssessmentSession } from "@/lib/assessment-session";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { calculateProfileCompleteness, useAssessmentSession } from "@/lib/assessment-session";
+import { useAuth } from "@/lib/auth-context";
+import { toast } from "sonner";
 import { DISCLAIMER } from "@/data/mock";
 import type { AthleteProfile, FitnessLevel } from "@/lib/types";
 
@@ -33,23 +36,44 @@ export const Route = createFileRoute("/onboarding")({
       },
     ],
   }),
-  component: Onboarding,
+  component: () => (
+    <ProtectedRoute>
+      <Onboarding />
+    </ProtectedRoute>
+  ),
 });
 
-const SPORTS = ["Basketball", "Football", "Athletics", "Volleyball", "Tennis", "Swimming"];
+const SPORTS = ["Basketball", "Volleyball", "Football", "Cricket", "Tennis", "Badminton"];
 
 function Onboarding() {
   const navigate = useNavigate();
-  const { saveProfile } = useAssessmentSession();
+  const { user } = useAuth();
+  const { profile, saveProfile } = useAssessmentSession();
+
   const [form, setForm] = useState<AthleteProfile>({
-    name: "",
-    age: 18,
-    gender: "prefer-not-to-say",
-    heightCm: 175,
-    fitnessLevel: "recreational",
-    preferredSports: [],
+    name: profile?.name || user?.user_metadata?.full_name || "",
+    age: profile?.age || 18,
+    gender: profile?.gender || "prefer-not-to-say",
+    heightCm: profile?.heightCm || 175,
+    fitnessLevel: profile?.fitnessLevel || "recreational",
+    preferredSports: profile?.preferredSports || [],
   });
+
   const [accepted, setAccepted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (profile?.name && !form.name) {
+      setForm((prev) => ({
+        ...prev,
+        name: profile.name,
+        age: profile.age ?? prev.age,
+        heightCm: profile.heightCm ?? prev.heightCm,
+        fitnessLevel: profile.fitnessLevel ?? prev.fitnessLevel,
+        preferredSports: profile.preferredSports ?? prev.preferredSports,
+      }));
+    }
+  }, [profile, form.name]);
 
   const toggleSport = (sport: string) =>
     setForm((f) => ({
@@ -59,22 +83,38 @@ function Onboarding() {
         : [...(f.preferredSports ?? []), sport],
     }));
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!accepted || !form.name.trim()) return;
-    saveProfile(form);
+
+    setIsSaving(true);
+    await saveProfile(form);
+    setIsSaving(false);
+
+    const score = calculateProfileCompleteness(form);
+    if (score >= 100) {
+      toast.success("Profile is 100% updated! You can now proceed to take assessments.", {
+        duration: 5000,
+        icon: "🎉",
+      });
+    } else {
+      toast.success("Profile details saved successfully!", {
+        duration: 3500,
+      });
+    }
+
     navigate({ to: "/dashboard" });
   };
 
   return (
-    <div className="min-h-screen bg-muted/40 px-4 py-10 sm:px-6">
+    <div className="min-h-screen bg-muted/40 px-4 py-10 sm:px-6 flex flex-col justify-center">
       <div className="mx-auto w-full max-w-xl">
         <Logo className="mb-8" />
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
-          <p className="label-meta text-muted-foreground">Step 01 / Profile</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Set up your athlete profile</h1>
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-xl sm:p-8">
+          <p className="label-meta text-emerald-600 dark:text-emerald-400 font-bold">Step 01 / Athlete Profile</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Set up your athlete profile</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            These details are used to normalize your measurements. They stay on this device.
+            These details are used to calibrate your movement measurements and calculate sport suitability.
           </p>
 
           <form className="mt-8 space-y-6" onSubmit={submit}>
@@ -85,8 +125,9 @@ function Onboarding() {
                   id="name"
                   required
                   value={form.name}
-                  placeholder="Your name"
+                  placeholder="e.g. Alex Morgan"
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className="h-11 rounded-xl"
                 />
               </div>
               <div className="space-y-2">
@@ -98,6 +139,7 @@ function Onboarding() {
                   max={80}
                   value={form.age}
                   onChange={(e) => setForm({ ...form, age: Number(e.target.value) })}
+                  className="h-11 rounded-xl"
                 />
               </div>
               <div className="space-y-2">
@@ -109,6 +151,7 @@ function Onboarding() {
                   max={230}
                   value={form.heightCm}
                   onChange={(e) => setForm({ ...form, heightCm: Number(e.target.value) })}
+                  className="h-11 rounded-xl"
                 />
               </div>
               <div className="space-y-2">
@@ -119,7 +162,7 @@ function Onboarding() {
                     setForm({ ...form, gender: v as NonNullable<AthleteProfile["gender"]> })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -136,7 +179,7 @@ function Onboarding() {
                   value={form.fitnessLevel}
                   onValueChange={(v) => setForm({ ...form, fitnessLevel: v as FitnessLevel })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-11 rounded-xl">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -159,10 +202,10 @@ function Onboarding() {
                       type="button"
                       key={sport}
                       onClick={() => toggleSport(sport)}
-                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all ${
                         active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-background text-muted-foreground hover:text-foreground"
+                          ? "border-emerald-500 bg-emerald-600 text-white shadow-xs scale-105"
+                          : "border-border bg-card text-muted-foreground hover:text-foreground"
                       }`}
                     >
                       {sport}
@@ -174,25 +217,35 @@ function Onboarding() {
 
             <div className="rounded-xl border border-border bg-muted/50 p-4">
               <div className="flex gap-3">
-                <ShieldAlert className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <ShieldAlert className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                 <p className="text-xs leading-relaxed text-muted-foreground">{DISCLAIMER}</p>
               </div>
-              <label className="mt-4 flex items-start gap-3 text-sm">
+              <label className="mt-4 flex items-start gap-3 text-sm cursor-pointer">
                 <Checkbox
                   checked={accepted}
                   onCheckedChange={(v) => setAccepted(v === true)}
                   className="mt-0.5"
                 />
-                <span className="text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   I understand this is an assessment tool, not medical advice, and I consent to
-                  recording video on my own device.
+                  securely recording movement video for analysis.
                 </span>
               </label>
             </div>
 
-            <Button type="submit" size="lg" className="w-full" disabled={!accepted}>
-              Continue to dashboard
-              <ArrowRight className="size-4" />
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md"
+              disabled={!accepted || isSaving}
+            >
+              {isSaving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <span className="flex items-center gap-2">
+                  Continue to Dashboard <ArrowRight className="size-4" />
+                </span>
+              )}
             </Button>
           </form>
         </div>

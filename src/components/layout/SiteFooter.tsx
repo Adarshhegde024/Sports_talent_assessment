@@ -26,7 +26,7 @@ export function SiteFooter() {
               Methodology
             </a>
           </div>
-          <p className="label-meta">v0.1.0 — Frontend prototype</p>
+          <p className="label-meta">© {new Date().getFullYear()} SportSense AI</p>
         </div>
       </div>
     </footer>

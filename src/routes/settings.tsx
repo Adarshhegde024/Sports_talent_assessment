@@ -4,6 +4,8 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Switch } from "@/components/ui/switch";
 import { DISCLAIMER } from "@/data/mock";
 
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+
 export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
@@ -19,7 +21,11 @@ export const Route = createFileRoute("/settings")({
       },
     ],
   }),
-  component: SettingsPage,
+  component: () => (
+    <ProtectedRoute>
+      <SettingsPage />
+    </ProtectedRoute>
+  ),
 });
 
 const options = [

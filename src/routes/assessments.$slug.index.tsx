@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAssessment } from "@/lib/api";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DISCLAIMER } from "@/data/mock";
 
 export const Route = createFileRoute("/assessments/$slug/")({
@@ -22,7 +23,11 @@ export const Route = createFileRoute("/assessments/$slug/")({
       },
     ],
   }),
-  component: AssessmentDetail,
+  component: () => (
+    <ProtectedRoute>
+      <AssessmentDetail />
+    </ProtectedRoute>
+  ),
 });
 
 const setupIcons = [Smartphone, Ruler, Sun];

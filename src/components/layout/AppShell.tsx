@@ -1,25 +1,35 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Bell, Settings, User } from "lucide-react";
+import { Bell, History, LayoutDashboard, Settings, Target, User } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { useAssessmentSession } from "@/lib/assessment-session";
+import { calculateProfileCompleteness, useAssessmentSession } from "@/lib/assessment-session";
+import { useAuth } from "@/lib/auth-context";
 
 const navItems = [
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/assessments", label: "Assessments" },
-  { to: "/history", label: "History" },
-  { to: "/profile", label: "Profile" },
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/assessments", label: "Assessments", icon: Target },
+  { to: "/history", label: "History", icon: History },
+  { to: "/profile", label: "Profile", icon: User },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { profile } = useAssessmentSession();
-  const initials = profile.name.slice(0, 1).toUpperCase();
+  const { user } = useAuth();
+  const displayName = profile.name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "A";
+  const initials = displayName.slice(0, 1).toUpperCase();
+  const completeness = calculateProfileCompleteness(profile);
+  const isProfileComplete = completeness >= 100;
+
+  // Circumference of r=14 circle is 2 * PI * 14 ≈ 87.96
+  const strokeDashoffset = 87.96 - (87.96 * completeness) / 100;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-50 border-b border-border bg-background/85 backdrop-blur-md">
-        <div className="mx-auto grid h-16 max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen flex-col bg-background selection:bg-emerald-500/20">
+      {/* Top App Bar */}
+      <header className="sticky top-0 z-50 border-b border-border/80 bg-background/85 backdrop-blur-md transition-colors">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-8">
             <Logo to="/dashboard" />
             <nav className="hidden items-center gap-6 md:flex">
@@ -28,45 +38,104 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.to}
                   to={item.to}
                   className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-                  activeProps={{ className: "text-foreground" }}
+                  activeProps={{ className: "text-foreground font-semibold" }}
                 >
                   {item.label}
                 </Link>
               ))}
             </nav>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
-            <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <ThemeToggle />
+            <Button variant="ghost" size="icon" aria-label="Notifications" className="relative size-9 rounded-full">
               <Bell className="size-4" />
-              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-primary" />
+              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-emerald-500" />
             </Button>
-            <Button asChild variant="ghost" size="icon" aria-label="Settings">
+            <Button asChild variant="ghost" size="icon" aria-label="Settings" className="size-9 rounded-full">
               <Link to="/settings">
                 <Settings className="size-4" />
               </Link>
             </Button>
-            <Button asChild variant="ghost" size="icon" aria-label="Profile">
-              <Link to="/profile">
-                <span className="flex size-7 items-center justify-center rounded-full bg-secondary text-xs font-semibold">
-                  {initials || <User className="size-3.5" />}
-                </span>
+
+            {/* User Avatar */}
+            {isProfileComplete ? (
+              <Button asChild variant="ghost" size="icon" aria-label="Profile" className="size-9 rounded-full">
+                <Link to="/profile">
+                  <span className="flex size-7 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/30 text-xs font-bold transition-transform hover:scale-105">
+                    {initials || <User className="size-3.5" />}
+                  </span>
+                </Link>
+              </Button>
+            ) : (
+              <Link
+                to="/onboarding"
+                title={`Profile ${completeness}% complete — Click to finish setup`}
+                className="group relative flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/5 p-1 transition-all hover:bg-amber-500/10 sm:pr-3"
+              >
+                <div className="relative flex size-8 items-center justify-center">
+                  {/* SVG Progress Ring */}
+                  <svg className="size-8 -rotate-90" viewBox="0 0 36 36">
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="14"
+                      className="stroke-muted"
+                      strokeWidth="2.5"
+                      fill="none"
+                    />
+                    <circle
+                      cx="18"
+                      cy="18"
+                      r="14"
+                      className="stroke-amber-500 dark:stroke-amber-400"
+                      strokeWidth="2.5"
+                      strokeDasharray={87.96}
+                      strokeDashoffset={strokeDashoffset}
+                      strokeLinecap="round"
+                      fill="none"
+                    />
+                  </svg>
+                  <span className="absolute text-xs font-bold text-foreground">
+                    {initials}
+                  </span>
+                </div>
+                <div className="hidden sm:flex flex-col text-left">
+                  <span className="text-[10px] font-mono font-bold leading-none text-amber-600 dark:text-amber-400">
+                    {completeness}%
+                  </span>
+                </div>
               </Link>
-            </Button>
+            )}
           </div>
         </div>
       </header>
 
-      <main className="flex-1">{children}</main>
+      {/* Main Content Area */}
+      <main className="flex-1 pb-20 md:pb-8">{children}</main>
 
-      <nav className="sticky bottom-0 z-50 grid grid-cols-4 border-t border-border bg-card md:hidden">
+      {/* Mobile Android / iOS Bottom Navigation Bar (Material 3 App Bar) */}
+      <nav className="fixed inset-x-0 bottom-0 z-50 grid grid-cols-4 border-t border-border/80 bg-background/90 backdrop-blur-xl pb-safe md:hidden shadow-lg">
         {navItems.map((item) => (
           <Link
             key={item.to}
             to={item.to}
-            className="py-3 text-center text-[11px] font-medium text-muted-foreground"
-            activeProps={{ className: "text-primary" }}
+            className="flex flex-col items-center justify-center py-2.5 text-[11px] font-medium text-muted-foreground transition-all active:scale-95 group"
+            activeProps={{ className: "text-emerald-600 dark:text-emerald-400 font-semibold" }}
           >
-            {item.label}
+            {({ isActive }) => (
+              <>
+                <div
+                  className={`flex size-8 items-center justify-center rounded-full transition-all duration-200 ${
+                    isActive
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/30 scale-105"
+                      : "text-muted-foreground group-hover:text-foreground"
+                  }`}
+                >
+                  <item.icon className="size-4.5" />
+                </div>
+                <span className="mt-1 leading-none">{item.label}</span>
+              </>
+            )}
           </Link>
         ))}
       </nav>
