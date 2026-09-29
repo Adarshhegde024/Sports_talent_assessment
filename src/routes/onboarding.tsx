@@ -51,7 +51,7 @@ function Onboarding() {
   const { profile, saveProfile } = useAssessmentSession();
 
   const [form, setForm] = useState<AthleteProfile>({
-    name: profile?.name || user?.user_metadata?.full_name || "",
+    name: profile?.name || (user?.user_metadata?.["full_name"] as string) || "",
     age: profile?.age || 18,
     gender: profile?.gender || "prefer-not-to-say",
     heightCm: profile?.heightCm || 175,
@@ -70,7 +70,7 @@ function Onboarding() {
         age: profile.age ?? prev.age,
         heightCm: profile.heightCm ?? prev.heightCm,
         fitnessLevel: profile.fitnessLevel ?? prev.fitnessLevel,
-        preferredSports: profile.preferredSports ?? prev.preferredSports,
+        preferredSports: profile.preferredSports ?? prev.preferredSports ?? [],
       }));
     }
   }, [profile, form.name]);

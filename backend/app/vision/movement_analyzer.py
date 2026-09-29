@@ -8,7 +8,8 @@ from backend.app.vision.agility import AgilityAnalyzer
 class MovementAnalyzer:
     """
     Unified Multi-Sport Kinematic Movement Analyzer.
-    Dispatches to specialized Computer Vision engines based on assessment slug.
+    Dispatches to specialized Computer Vision engines based on assessment slug,
+    processing real video uploads or calibrated kinematic models.
     """
 
     def __init__(self):
@@ -28,12 +29,20 @@ class MovementAnalyzer:
         slug = (assessment_slug or "vertical-jump").lower()
 
         if "squat" in slug:
+            if video_path:
+                return self.squat_analyzer.analyze_video(video_path, athlete_height_cm)
             return self.squat_analyzer.generate_calibrated_squat(athlete_height_cm)
         elif "balance" in slug:
+            if video_path:
+                return self.balance_analyzer.analyze_video(video_path)
             return self.balance_analyzer.generate_calibrated_balance()
         elif "push" in slug:
+            if video_path:
+                return self.pushup_analyzer.analyze_video(video_path)
             return self.pushup_analyzer.generate_calibrated_pushup()
         elif "agility" in slug or "side" in slug:
+            if video_path:
+                return self.agility_analyzer.analyze_video(video_path)
             return self.agility_analyzer.generate_calibrated_agility()
         else:
             # Default Vertical Jump

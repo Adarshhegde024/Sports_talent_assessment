@@ -47,16 +47,29 @@ export function SiteHeader() {
               {user ? "Dashboard" : "Log in"}
             </Link>
           </Button>
-          <Button
-            asChild
-            size="sm"
-            className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-all hover:shadow-md text-xs sm:text-sm px-3 sm:px-4"
-          >
-            <Link to={user ? "/assessments/vertical-jump" : "/login"} className="flex items-center gap-1.5">
-              <span>Start Assessment</span>
-              <ArrowRight className="size-3.5" />
-            </Link>
-          </Button>
+          {user ? (
+            <Button
+              asChild
+              size="sm"
+              className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-all hover:shadow-md text-xs sm:text-sm px-3 sm:px-4"
+            >
+              <Link to="/assessments/$slug" params={{ slug: "vertical-jump" }} className="flex items-center gap-1.5">
+                <span>Start Assessment</span>
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              asChild
+              size="sm"
+              className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-all hover:shadow-md text-xs sm:text-sm px-3 sm:px-4"
+            >
+              <Link to="/login" className="flex items-center gap-1.5">
+                <span>Start Assessment</span>
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          )}
 
           {/* Mobile hamburger menu toggle */}
           <button
@@ -90,11 +103,19 @@ export function SiteHeader() {
                   {user ? "Go to Dashboard" : "Sign In / Log In"}
                 </Link>
               </Button>
-              <Button asChild className="w-full justify-center bg-emerald-600 hover:bg-emerald-700 text-white">
-                <Link to={user ? "/assessments/vertical-jump" : "/login"} onClick={() => setMobileMenuOpen(false)}>
-                  Start Assessment →
-                </Link>
-              </Button>
+              {user ? (
+                <Button asChild className="w-full justify-center bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Link to="/assessments/$slug" params={{ slug: "vertical-jump" }} onClick={() => setMobileMenuOpen(false)}>
+                    Start Assessment →
+                  </Link>
+                </Button>
+              ) : (
+                <Button asChild className="w-full justify-center bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
+                    Start Assessment →
+                  </Link>
+                </Button>
+              )}
             </div>
           </nav>
         </div>

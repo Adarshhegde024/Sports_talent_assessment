@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Camera, Edit3, Sparkles, TrendingUp, UserCog } from "lucide-react";
+import { ArrowRight, Camera, Edit3, Sparkles, TrendingUp, Trophy, UserCog } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { MetricBar } from "@/components/metrics/MetricBar";
@@ -51,7 +51,7 @@ function Dashboard() {
 
   const completedRuns = history.data?.filter((run) => run.status === "completed") ?? [];
   const completedCount = completedRuns.length;
-  const displayName = profile.name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Athlete";
+  const displayName = profile?.name || (user?.user_metadata?.["full_name"] as string) || user?.email?.split("@")[0] || "Athlete";
 
   // Calculate best jump from history
   const bestJump = history.data?.reduce((max, run) => {
@@ -198,7 +198,7 @@ function Dashboard() {
               )}
             </div>
 
-            {completedRuns.length > 0 ? (
+            {completedRuns.length > 0 && completedRuns[0]?.id ? (
               <Button asChild variant="outline" className="mt-6 w-full rounded-xl">
                 <Link to="/results/$runId" params={{ runId: completedRuns[0].id }}>
                   <TrendingUp className="size-4" />
@@ -216,30 +216,55 @@ function Dashboard() {
           </section>
         </div>
 
-        <section className="mt-8 overflow-hidden rounded-2xl bg-zinc-950 p-6 text-white shadow-xl sm:p-8 border border-white/10">
-          <p className="label-meta text-emerald-400 font-bold">
-            {allTestsDone ? "Talent Battery Complete" : "Next Recommended Assessment"}
-          </p>
-          <h2 className="mt-2 text-xl font-bold">
+        <section className="mt-8 overflow-hidden rounded-2xl bg-zinc-950 p-6 text-white shadow-xl sm:p-8 border border-white/10 relative">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-1 text-xs font-bold text-emerald-300">
+              <Trophy className="size-3.5 text-amber-400" />
+              <span>{allTestsDone ? "Comprehensive Talent Discovery Complete" : `Talent Battery: ${completedSlugs.size} of 5 Completed`}</span>
+            </div>
+            {allTestsDone && (
+              <span className="rounded-full bg-emerald-500/20 px-3 py-0.5 text-xs font-semibold text-emerald-300 border border-emerald-500/30">
+                100% Calibrated
+              </span>
+            )}
+          </div>
+
+          <h2 className="mt-3 text-2xl font-bold">
             {allTestsDone
-              ? "All 5 Movement Assessments Completed!"
-              : `${nextAssessment.name} — ${nextAssessment.attempts} attempts, ${nextAssessment.durationMinutes} minutes`}
+              ? "Your Comprehensive Final Sport Recommendation Is Ready!"
+              : `Next: ${nextAssessment.name} (${completedSlugs.size + 1} of 5)`}
           </h2>
-          <p className="mt-2 max-w-xl text-sm text-zinc-300">
+          <p className="mt-2 max-w-xl text-sm text-zinc-300 leading-relaxed">
             {allTestsDone
-              ? "Your complete multi-trait athletic profile is now fully calibrated across all 6 sports. Re-test any assessment to track your training progression."
-              : nextAssessment.description}
+              ? "All 5 movement assessments (Vertical Jump, Squat, Balance, Push-Up, and Agility) have been analyzed. View your single definitive recommended sport, Olympic coach analysis, and customized 4-week practice roadmap."
+              : `Complete all 5 assessments so our AI can synthesize your complete 5-trait biomechanical fingerprint and recommend the single best sport for you to practice and excel in.`}
           </p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Button asChild className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold shadow-md">
-              <Link to="/assessments/$slug" params={{ slug: nextAssessment.slug }}>
-                {allTestsDone ? "Re-Test Movement" : "Begin Session"}
-                <ArrowRight className="size-4" />
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            {allTestsDone ? (
+              <Button asChild className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold shadow-md active:scale-95 transition-all">
+                <Link to="/talent-report">
+                  <Trophy className="size-4 mr-1.5" />
+                  View Final Sport Recommendation & Practice Plan
+                  <ArrowRight className="size-4 ml-1.5" />
+                </Link>
+              </Button>
+            ) : (
+              <Button asChild className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold shadow-md active:scale-95 transition-all">
+                <Link to="/assessments/$slug" params={{ slug: nextAssessment.slug }}>
+                  Take Next Test: {nextAssessment.name}
+                  <ArrowRight className="size-4 ml-1.5" />
+                </Link>
+              </Button>
+            )}
+            <Button asChild variant="outline" className="rounded-xl border-white/20 bg-white/5 text-white hover:bg-white/10">
+              <Link to="/talent-report">
+                View Talent Discovery Report
               </Link>
             </Button>
             <Button asChild variant="outline" className="rounded-xl border-white/20 bg-white/5 text-white hover:bg-white/10">
               <Link to="/assessments">
-                View All Assessments
+                Browse All 5 Tests
               </Link>
             </Button>
           </div>

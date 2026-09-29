@@ -89,8 +89,8 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
     }
 
     const initialName =
-      user.user_metadata?.full_name ||
-      user.user_metadata?.name ||
+      (user.user_metadata?.["full_name"] as string) ||
+      (user.user_metadata?.["name"] as string) ||
       user.email?.split("@")[0] ||
       "Athlete";
 
@@ -146,15 +146,18 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
           }
         } else if (!profileData && isMounted) {
           // Auto-seed profile row for new user in Supabase
-          await supabase
-            .from("profiles")
-            .upsert({
-              id: user!.id,
-              full_name: initialName,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            })
-            .catch(() => undefined);
+          try {
+            await supabase
+              .from("profiles")
+              .upsert({
+                id: user!.id,
+                full_name: initialName,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              });
+          } catch {
+            /* ignore */
+          }
 
           const freshProfile: AthleteProfile = {
             name: initialName,

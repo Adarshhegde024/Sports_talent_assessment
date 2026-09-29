@@ -17,6 +17,7 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as TalentReportRouteImport } from './routes/talent-report'
 import { Route as AssessmentsIndexRouteImport } from './routes/assessments.index'
 import { Route as ResultsRunIdRouteImport } from './routes/results.$runId'
 import { Route as AssessmentsSlugIndexRouteImport } from './routes/assessments.$slug.index'
@@ -62,6 +63,11 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TalentReportRoute = TalentReportRouteImport.update({
+  id: '/talent-report',
+  path: '/talent-report',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AssessmentsIndexRoute = AssessmentsIndexRouteImport.update({
   id: '/assessments/',
   path: '/assessments/',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/talent-report': typeof TalentReportRoute
   '/results/$runId': typeof ResultsRunIdRoute
   '/assessments/': typeof AssessmentsIndexRoute
   '/assessments/$slug/record': typeof AssessmentsSlugRecordRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/talent-report': typeof TalentReportRoute
   '/results/$runId': typeof ResultsRunIdRoute
   '/assessments': typeof AssessmentsIndexRoute
   '/assessments/$slug/record': typeof AssessmentsSlugRecordRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/profile': typeof ProfileRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/talent-report': typeof TalentReportRoute
   '/results/$runId': typeof ResultsRunIdRoute
   '/assessments/': typeof AssessmentsIndexRoute
   '/assessments/$slug/record': typeof AssessmentsSlugRecordRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/settings'
+    | '/talent-report'
     | '/results/$runId'
     | '/assessments/'
     | '/assessments/$slug/record'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/settings'
+    | '/talent-report'
     | '/results/$runId'
     | '/assessments'
     | '/assessments/$slug/record'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/settings'
+    | '/talent-report'
     | '/results/$runId'
     | '/assessments/'
     | '/assessments/$slug/record'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   ProfileRoute: typeof ProfileRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
+  TalentReportRoute: typeof TalentReportRoute
   ResultsRunIdRoute: typeof ResultsRunIdRoute
   AssessmentsIndexRoute: typeof AssessmentsIndexRoute
   AssessmentsSlugRecordRoute: typeof AssessmentsSlugRecordRoute
@@ -244,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/talent-report': {
+      id: '/talent-report'
+      path: '/talent-report'
+      fullPath: '/talent-report'
+      preLoaderRoute: typeof TalentReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/assessments/': {
       id: '/assessments/'
       path: '/assessments'
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProfileRoute: ProfileRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,
+  TalentReportRoute: TalentReportRoute,
   ResultsRunIdRoute: ResultsRunIdRoute,
   AssessmentsIndexRoute: AssessmentsIndexRoute,
   AssessmentsSlugRecordRoute: AssessmentsSlugRecordRoute,

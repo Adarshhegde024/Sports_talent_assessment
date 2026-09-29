@@ -1,18 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   Activity,
   ArrowRight,
   Check,
   CheckCircle2,
-  ChevronRight,
   Eye,
   EyeOff,
-  Flame,
   KeyRound,
   Loader2,
   Lock,
   Mail,
+  Phone,
   ShieldCheck,
   Sparkles,
   Trophy,
@@ -24,7 +23,11 @@ import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
+import { PhoneAuthForm } from "@/components/auth/PhoneAuthForm";
 import { useAuth } from "@/lib/auth-context";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -40,30 +43,55 @@ export const Route = createFileRoute("/login")({
 });
 
 type AuthMode = "signin" | "signup";
+type AuthMethod = "email" | "phone";
 
-function getPasswordStrength(pass: string): { score: number; label: string; color: string } {
-  if (!pass) return { score: 0, label: "", color: "" };
+function getPasswordStrength(pass: string): {
+  score: number;
+  label: string;
+  color: string;
+  hasLength: boolean;
+  hasNumber: boolean;
+  hasSpecial: boolean;
+} {
+  if (!pass) {
+    return { score: 0, label: "", color: "", hasLength: false, hasNumber: false, hasSpecial: false };
+  }
+  const hasLength = pass.length >= 6;
+  const hasNumber = /[0-9]/.test(pass);
+  const hasSpecial = /[^A-Za-z0-9]/.test(pass);
+
   let score = 0;
-  if (pass.length >= 6) score += 1;
+  if (hasLength) score += 1;
   if (pass.length >= 10) score += 1;
-  if (/[0-9]/.test(pass)) score += 1;
-  if (/[^A-Za-z0-9]/.test(pass)) score += 1;
+  if (hasNumber) score += 1;
+  if (hasSpecial) score += 1;
 
-  if (score <= 1) return { score: 1, label: "Weak", color: "bg-red-500" };
-  if (score === 2) return { score: 2, label: "Fair", color: "bg-amber-500" };
-  if (score === 3) return { score: 3, label: "Good", color: "bg-emerald-400" };
-  return { score: 4, label: "Strong", color: "bg-emerald-500" };
+  if (score <= 1) return { score: 1, label: "Weak", color: "bg-red-500", hasLength, hasNumber, hasSpecial };
+  if (score === 2) return { score: 2, label: "Fair", color: "bg-amber-500", hasLength, hasNumber, hasSpecial };
+  if (score === 3) return { score: 3, label: "Good", color: "bg-emerald-400", hasLength, hasNumber, hasSpecial };
+  return { score: 4, label: "Strong", color: "bg-emerald-500", hasLength, hasNumber, hasSpecial };
 }
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { signIn, signUp, resetPassword, user } = useAuth();
+  const { signIn, signUp, resetPassword, user, getRememberedEmail, rememberEmail, clearRememberedEmail } =
+    useAuth();
 
   const [mode, setMode] = useState<AuthMode>("signin");
+  const [method, setMethod] = useState<AuthMethod>("email");
+
+  // Form fields
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [saveCredentials, setSaveCredentials] = useState(true);
+  const [acceptTerms, setAcceptTerms] = useState(false);
+
+  // States
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -75,10 +103,21 @@ function LoginPage() {
   const [forgotSuccess, setForgotSuccess] = useState(false);
   const [forgotError, setForgotError] = useState<string | null>(null);
 
+  // Autofill remembered email on initial mount
+  useEffect(() => {
+    const saved = getRememberedEmail();
+    if (saved) {
+      setEmail(saved);
+      setSaveCredentials(true);
+    }
+  }, [getRememberedEmail]);
+
   // Redirect if user is already authenticated
-  if (user) {
-    navigate({ to: "/dashboard" });
-  }
+  useEffect(() => {
+    if (user) {
+      navigate({ to: "/dashboard" });
+    }
+  }, [user, navigate]);
 
   const passStrength = getPasswordStrength(password);
 
@@ -86,31 +125,58 @@ function LoginPage() {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
-    setIsSubmitting(true);
 
     if (mode === "signin") {
-      const { error } = await signIn(email.trim(), password);
+      setIsSubmitting(true);
+      const cleanEmail = email.trim();
+      const { error } = await signIn(cleanEmail, password);
       setIsSubmitting(false);
+
       if (error) {
-        setErrorMsg(error.message || "Failed to sign in. Please verify your email and password.");
+        setErrorMsg(error.message || "Invalid credentials. Please verify your email and password.");
+        toast.error("Sign in failed");
       } else {
+        if (saveCredentials) {
+          rememberEmail(cleanEmail);
+        } else {
+          clearRememberedEmail();
+        }
+        toast.success("Welcome back!");
         navigate({ to: "/dashboard" });
       }
     } else {
+      // Sign Up validation
       if (password.length < 6) {
         setErrorMsg("Password must be at least 6 characters long.");
-        setIsSubmitting(false);
         return;
       }
-      const { error } = await signUp(email.trim(), password, fullName.trim());
+      if (password !== confirmPassword) {
+        setErrorMsg("Passwords do not match. Please re-check.");
+        return;
+      }
+      if (!acceptTerms) {
+        setErrorMsg("Please accept the Terms & Conditions and Privacy Policy.");
+        return;
+      }
+
+      setIsSubmitting(true);
+      const cleanEmail = email.trim();
+      const cleanName = fullName.trim();
+      const { error } = await signUp(cleanEmail, password, cleanName, phoneNumber.trim() || undefined);
       setIsSubmitting(false);
+
       if (error) {
         setErrorMsg(error.message || "Failed to create account. Please check your details.");
+        toast.error("Sign up failed");
       } else {
-        setSuccessMsg("Account created! Redirecting to your athlete dashboard...");
+        if (saveCredentials) {
+          rememberEmail(cleanEmail);
+        }
+        setSuccessMsg("Account created successfully! Preparing your athlete dashboard...");
+        toast.success("Account created successfully!");
         setTimeout(() => {
           navigate({ to: "/dashboard" });
-        }, 1000);
+        }, 1200);
       }
     }
   };
@@ -121,10 +187,12 @@ function LoginPage() {
     setForgotSubmitting(true);
     const { error } = await resetPassword(forgotEmail.trim());
     setForgotSubmitting(false);
+
     if (error) {
       setForgotError(error.message || "Failed to send password reset email.");
     } else {
       setForgotSuccess(true);
+      toast.success("Password recovery link sent!");
     }
   };
 
@@ -136,10 +204,10 @@ function LoginPage() {
         <div className="absolute inset-0 z-0">
           <img
             src="https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=1600&q=80"
-            alt="Athlete jumping"
+            alt="Athlete in action"
             className="size-full object-cover opacity-25 scale-105 filter saturate-150"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/75 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-r from-zinc-950 via-zinc-950/40 to-transparent" />
           <div className="absolute -left-20 top-1/4 size-80 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
         </div>
@@ -162,7 +230,7 @@ function LoginPage() {
             <span className="text-emerald-400">Athletic Potential.</span>
           </h2>
           <p className="text-sm xl:text-base text-zinc-300 leading-relaxed max-w-md">
-            Smartphone-based computer vision measures your explosive power, jump mechanics, and recommends matching sports in seconds.
+            Smartphone-based computer vision measures your vertical power, squat mobility, balance stability, and agility in seconds.
           </p>
 
           {/* Floating Metric Preview Card */}
@@ -171,7 +239,7 @@ function LoginPage() {
               <div className="flex items-center gap-2">
                 <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span className="font-mono text-xs font-bold text-zinc-200 uppercase tracking-wide">
-                  Vertical Jump Assessment
+                  Kinematic Movement Battery
                 </span>
               </div>
               <span className="rounded-md bg-emerald-500/20 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-300">
@@ -181,11 +249,11 @@ function LoginPage() {
 
             <div className="flex items-baseline justify-between border-y border-white/10 py-3">
               <div>
-                <p className="text-[11px] text-zinc-400 uppercase font-medium">Measured Peak Height</p>
-                <p className="text-2xl font-mono font-extrabold text-white">52.4 cm</p>
+                <p className="text-[11px] text-zinc-400 uppercase font-medium">Primary Strength</p>
+                <p className="text-2xl font-mono font-extrabold text-white">Explosive Power</p>
               </div>
               <div className="text-right">
-                <p className="text-[11px] text-zinc-400 uppercase font-medium">Explosive Power</p>
+                <p className="text-[11px] text-zinc-400 uppercase font-medium">Performance Index</p>
                 <p className="text-2xl font-mono font-extrabold text-emerald-400">92 / 100</p>
               </div>
             </div>
@@ -193,9 +261,9 @@ function LoginPage() {
             <div className="flex items-center justify-between text-xs text-zinc-300">
               <span className="flex items-center gap-1.5">
                 <Trophy className="size-3.5 text-amber-400" />
-                Top Fit: Basketball &amp; Volleyball
+                Top Sport Match: Basketball &amp; Volleyball
               </span>
-              <span className="font-mono text-[11px] text-emerald-400 font-bold">94% Match</span>
+              <span className="font-mono text-[11px] text-emerald-400 font-bold">96% Fit</span>
             </div>
           </div>
         </div>
@@ -233,26 +301,23 @@ function LoginPage() {
         {/* Center Card */}
         <div className="w-full max-w-md mx-auto my-auto py-8">
           {/* Header */}
-          <div className="mb-6">
+          <div className="mb-6 text-left">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              {mode === "signin" ? "Welcome back, athlete" : "Create your athlete account"}
+              {mode === "signin" ? "Welcome Back" : "Create Your Account"}
             </h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
               {mode === "signin"
-                ? "Sign in to access your assessment log, metrics, and recommendations."
-                : "Join SportSense AI to begin your movement assessments and sport suitability discovery."}
+                ? "Continue your athletic journey with SportSense AI."
+                : "Join SportSense AI to begin your standardized movement assessments."}
             </p>
           </div>
 
-          {/* Mode Switcher Tabs */}
+          {/* Mode Switcher Tabs (Sign In vs Create Account) */}
           <div className="mb-6 grid grid-cols-2 rounded-xl bg-muted/60 p-1 ring-1 ring-border/80">
             <button
               type="button"
               onClick={() => {
                 setMode("signin");
-                setEmail("");
-                setPassword("");
-                setFullName("");
                 setErrorMsg(null);
                 setSuccessMsg(null);
               }}
@@ -268,9 +333,6 @@ function LoginPage() {
               type="button"
               onClick={() => {
                 setMode("signup");
-                setEmail("");
-                setPassword("");
-                setFullName("");
                 setErrorMsg(null);
                 setSuccessMsg(null);
               }}
@@ -286,6 +348,57 @@ function LoginPage() {
 
           {/* Main Form Container */}
           <div className="rounded-2xl border border-border/80 bg-card p-6 sm:p-8 shadow-xl shadow-black/5 dark:shadow-black/20">
+            {/* Social Login Button */}
+            <div className="space-y-3">
+              <GoogleAuthButton
+                label={mode === "signin" ? "Continue with Google" : "Sign up with Google"}
+                disabled={isSubmitting}
+              />
+
+              {/* Method Switcher between Email and Phone */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant={method === "email" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setMethod("email");
+                    setErrorMsg(null);
+                  }}
+                  className={`h-9 rounded-lg text-xs font-semibold ${
+                    method === "email"
+                      ? "bg-muted text-foreground hover:bg-muted"
+                      : "border-border/70 text-muted-foreground"
+                  }`}
+                >
+                  <Mail className="mr-1.5 size-3.5" /> Email
+                </Button>
+                <Button
+                  type="button"
+                  variant={method === "phone" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setMethod("phone");
+                    setErrorMsg(null);
+                  }}
+                  className={`h-9 rounded-lg text-xs font-semibold ${
+                    method === "phone"
+                      ? "bg-muted text-foreground hover:bg-muted"
+                      : "border-border/70 text-muted-foreground"
+                  }`}
+                >
+                  <Phone className="mr-1.5 size-3.5" /> Phone OTP
+                </Button>
+              </div>
+            </div>
+
+            {/* Visual Divider */}
+            <div className="relative my-6 text-center text-xs after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
+              <span className="relative z-10 bg-card px-2 text-muted-foreground uppercase font-mono text-[10px] tracking-wider">
+                Or continue with {method}
+              </span>
+            </div>
+
             {/* Error Notification */}
             {errorMsg && (
               <div className="mb-5 rounded-xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs text-destructive flex items-start gap-2.5 animate-in fade-in duration-200">
@@ -301,136 +414,214 @@ function LoginPage() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
-              {mode === "signup" && (
+            {/* Render Phone Form or Email Form */}
+            {method === "phone" ? (
+              <PhoneAuthForm onSuccess={() => navigate({ to: "/dashboard" })} />
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {mode === "signup" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="fullName" className="text-xs font-semibold">
+                      Full name
+                    </Label>
+                    <div className="relative">
+                      <User className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="fullName"
+                        type="text"
+                        required
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="e.g. Alex Morgan"
+                        className="pl-10 h-11 rounded-xl focus-visible:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
-                  <Label htmlFor="fullName" className="text-xs font-semibold">
-                    Full name
+                  <Label htmlFor="email" className="text-xs font-semibold">
+                    Email address
                   </Label>
                   <div className="relative">
-                    <User className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
-                      id="fullName"
-                      name="sportsense_athlete_name"
-                      type="text"
+                      id="email"
+                      type="email"
                       required
-                      autoComplete="off"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="e.g. Alex Morgan"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@domain.com"
                       className="pl-10 h-11 rounded-xl focus-visible:ring-emerald-500"
                     />
                   </div>
                 </div>
-              )}
 
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-xs font-semibold">
-                  Email address
-                </Label>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="email"
-                    name="sportsense_athlete_email"
-                    type="email"
-                    required
-                    autoComplete="off"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@domain.com"
-                    className="pl-10 h-11 rounded-xl focus-visible:ring-emerald-500"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-xs font-semibold">
-                    Password
-                  </Label>
-                  {mode === "signin" && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setForgotEmail(email);
-                        setShowForgotModal(true);
-                        setForgotSuccess(false);
-                        setForgotError(null);
-                      }}
-                      className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
-                    >
-                      Forgot password?
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    name="sportsense_athlete_pass"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    autoComplete="new-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={mode === "signin" ? "Enter your password" : "Create password (min. 6 chars)"}
-                    className="pl-10 pr-10 h-11 rounded-xl focus-visible:ring-emerald-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-                  </button>
-                </div>
-
-                {/* Password Strength Indicator on Sign Up */}
-                {mode === "signup" && password.length > 0 && (
-                  <div className="pt-1.5 space-y-1">
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                      <span>Password strength:</span>
-                      <span className="font-bold text-foreground">{passStrength.label}</span>
-                    </div>
-                    <div className="grid grid-cols-4 gap-1 h-1.5">
-                      {[1, 2, 3, 4].map((step) => (
-                        <div
-                          key={step}
-                          className={`rounded-full transition-all ${
-                            step <= passStrength.score ? passStrength.color : "bg-muted"
-                          }`}
-                        />
-                      ))}
+                {mode === "signup" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="phoneNumber" className="text-xs font-semibold">
+                      Phone number (optional)
+                    </Label>
+                    <div className="relative">
+                      <Phone className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="phoneNumber"
+                        type="tel"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        placeholder="+91 98765 43210"
+                        className="pl-10 h-11 rounded-xl focus-visible:ring-emerald-500"
+                      />
                     </div>
                   </div>
                 )}
-              </div>
 
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="mt-6 w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-[0.99]"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : mode === "signin" ? (
-                  <span className="flex items-center gap-2">
-                    Sign In to Dashboard <ArrowRight className="size-4" />
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    Create Athlete Account <ArrowRight className="size-4" />
-                  </span>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-xs font-semibold">
+                      Password
+                    </Label>
+                    {mode === "signin" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForgotEmail(email);
+                          setShowForgotModal(true);
+                          setForgotSuccess(false);
+                          setForgotError(null);
+                        }}
+                        className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={mode === "signin" ? "Enter your password" : "Create password (min. 6 chars)"}
+                      className="pl-10 pr-10 h-11 rounded-xl focus-visible:ring-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
+
+                  {/* Password Strength Indicator on Sign Up */}
+                  {mode === "signup" && password.length > 0 && (
+                    <div className="pt-1.5 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                        <span>Password strength:</span>
+                        <span className="font-bold text-foreground">{passStrength.label}</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1 h-1.5">
+                        {[1, 2, 3, 4].map((step) => (
+                          <div
+                            key={step}
+                            className={`rounded-full transition-all ${
+                              step <= passStrength.score ? passStrength.color : "bg-muted"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground pt-1">
+                        <span className={`flex items-center gap-1 ${passStrength.hasLength ? "text-emerald-500 font-medium" : ""}`}>
+                          <Check className="size-3" /> 6+ characters
+                        </span>
+                        <span className={`flex items-center gap-1 ${passStrength.hasNumber ? "text-emerald-500 font-medium" : ""}`}>
+                          <Check className="size-3" /> 1 number
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {mode === "signup" && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="confirmPassword" className="text-xs font-semibold">
+                      Confirm password
+                    </Label>
+                    <div className="relative">
+                      <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Re-enter your password"
+                        className="pl-10 pr-10 h-11 rounded-xl focus-visible:ring-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword((prev) => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showConfirmPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </Button>
-            </form>
+
+                {/* Remember Me Checkbox on Sign In */}
+                {mode === "signin" && (
+                  <label className="flex items-center gap-2.5 text-xs text-muted-foreground cursor-pointer pt-1">
+                    <Checkbox
+                      checked={saveCredentials}
+                      onCheckedChange={(val) => setSaveCredentials(val === true)}
+                    />
+                    <span>Save login credentials</span>
+                  </label>
+                )}
+
+                {/* Terms of Service Checkbox on Sign Up */}
+                {mode === "signup" && (
+                  <label className="flex items-start gap-2.5 text-xs text-muted-foreground cursor-pointer pt-1">
+                    <Checkbox
+                      checked={acceptTerms}
+                      onCheckedChange={(val) => setAcceptTerms(val === true)}
+                      className="mt-0.5"
+                    />
+                    <span className="text-[11px] leading-relaxed">
+                      I agree to the <span className="text-emerald-600 dark:text-emerald-400 font-medium">Terms of Service</span> and acknowledge the <span className="text-emerald-600 dark:text-emerald-400 font-medium">Privacy Policy</span>.
+                    </span>
+                  </label>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="mt-6 w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20 transition-all active:scale-[0.99]"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : mode === "signin" ? (
+                    <span className="flex items-center gap-2">
+                      Sign In <ArrowRight className="size-4" />
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      Create Account <ArrowRight className="size-4" />
+                    </span>
+                  )}
+                </Button>
+              </form>
+            )}
 
             <div className="mt-6 border-t border-border/80 pt-4 text-center text-xs text-muted-foreground">
               {mode === "signin" ? (
                 <p>
-                  Don't have an athlete account?{" "}
+                  Don't have an account?{" "}
                   <button
                     type="button"
                     onClick={() => {
@@ -439,7 +630,7 @@ function LoginPage() {
                     }}
                     className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
                   >
-                    Create one now
+                    Sign Up
                   </button>
                 </p>
               ) : (
@@ -453,7 +644,7 @@ function LoginPage() {
                     }}
                     className="font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
                   >
-                    Sign in
+                    Log in
                   </button>
                 </p>
               )}

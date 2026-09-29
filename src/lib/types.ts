@@ -28,6 +28,8 @@ export interface AssessmentDefinition {
   setup: { title: string; body: string }[];
 }
 
+export type Assessment = AssessmentDefinition;
+
 export interface AssessmentRun {
   id: string;
   assessmentId: string;

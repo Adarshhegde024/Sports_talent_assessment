@@ -58,7 +58,7 @@ function AssessmentDetail() {
             </div>
 
             <section className="mt-8 grid gap-4 sm:grid-cols-3">
-              {data.setup.map((item, index) => {
+              {data.setup.map((item: { title: string; body: string }, index: number) => {
                 const Icon = setupIcons[index % setupIcons.length]!;
                 return (
                 <div key={item.title} className="rounded-2xl border border-border bg-card p-5">
@@ -73,7 +73,7 @@ function AssessmentDetail() {
             <section className="mt-6 rounded-2xl border border-border bg-card p-6">
               <h2 className="text-base font-semibold">Protocol</h2>
               <ol className="mt-4 space-y-3">
-                {data.protocol.map((line, i) => (
+                {data.protocol.map((line: string, i: number) => (
                   <li key={line} className="flex gap-3 text-sm text-muted-foreground">
                     <span className="readout text-xs text-primary">0{i + 1}</span>
                     {line}

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Bell, History, LayoutDashboard, Settings, Target, User } from "lucide-react";
+import { Bell, History, LayoutDashboard, Settings, Target, Trophy, User } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/assessments", label: "Assessments", icon: Target },
+  { to: "/talent-report", label: "Talent Discovery", icon: Trophy },
   { to: "/history", label: "History", icon: History },
   { to: "/profile", label: "Profile", icon: User },
 ] as const;
@@ -17,7 +18,7 @@ const navItems = [
 export function AppShell({ children }: { children: ReactNode }) {
   const { profile } = useAssessmentSession();
   const { user } = useAuth();
-  const displayName = profile.name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "A";
+  const displayName = profile.name || (user?.user_metadata?.["full_name"] as string) || user?.email?.split("@")[0] || "A";
   const initials = displayName.slice(0, 1).toUpperCase();
   const completeness = calculateProfileCompleteness(profile);
   const isProfileComplete = completeness >= 100;

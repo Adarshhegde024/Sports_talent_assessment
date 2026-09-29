@@ -117,16 +117,29 @@ function Landing() {
 
             {/* CTAs */}
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3.5 sm:gap-4">
-              <Button
-                asChild
-                size="lg"
-                className="h-11 sm:h-12 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md hover:shadow-lg transition-all"
-              >
-                <Link to={user ? "/assessments/vertical-jump" : "/login"} className="flex items-center gap-2">
-                  <span>Start Assessment</span>
-                  <ArrowRight className="size-4" />
-                </Link>
-              </Button>
+              {user ? (
+                <Button
+                  asChild
+                  size="lg"
+                  className="h-11 sm:h-12 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md hover:shadow-lg transition-all"
+                >
+                  <Link to="/assessments/$slug" params={{ slug: "vertical-jump" }} className="flex items-center gap-2">
+                    <span>Start Assessment</span>
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              ) : (
+                <Button
+                  asChild
+                  size="lg"
+                  className="h-11 sm:h-12 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md hover:shadow-lg transition-all"
+                >
+                  <Link to="/login" className="flex items-center gap-2">
+                    <span>Start Assessment</span>
+                    <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              )}
               <Button
                 asChild
                 size="lg"

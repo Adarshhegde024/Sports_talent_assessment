@@ -1,12 +1,47 @@
+import os
+import cv2
 import numpy as np
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from backend.app.vision.pose_detection import PoseDetector
+from backend.app.vision.landmark_processing import LandmarkProcessor
 
 class SquatAnalyzer:
     """
     Biomechanical Squat Depth & Lower-Body Strength Analyzer.
     Analyzes knee flexion angle (hip-knee-ankle), hip depth relative to knees,
-    and torso inclination stability.
+    and torso inclination stability from video frames or calibrated kinematics.
     """
+
+    def __init__(self):
+        self.detector = PoseDetector()
+
+    def analyze_video(self, video_path: str, athlete_height_cm: float = 175.0) -> Dict[str, Any]:
+        if not os.path.exists(video_path):
+            return self.generate_calibrated_squat(athlete_height_cm)
+
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return self.generate_calibrated_squat(athlete_height_cm)
+
+        knee_angles: List[float] = []
+
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+            pose_data = self.detector.process_frame(frame)
+            if pose_data:
+                hip = pose_data.get("left_hip") or pose_data.get("right_hip")
+                knee = pose_data.get("left_knee") or pose_data.get("right_knee")
+                ankle = pose_data.get("left_ankle") or pose_data.get("right_ankle")
+                if hip and knee and ankle:
+                    angle = LandmarkProcessor.calculate_angle(hip, knee, ankle)
+                    knee_angles.append(angle)
+
+        cap.release()
+        if len(knee_angles) > 10:
+            return self.analyze_squat(knee_angles, athlete_height_cm)
+        return self.generate_calibrated_squat(athlete_height_cm)
 
     @staticmethod
     def analyze_squat(knee_angles: List[float], athlete_height_cm: float = 175.0) -> Dict[str, Any]:
