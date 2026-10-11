@@ -48,6 +48,8 @@ Thumbs.db
 
 # Build output
 .output/
+.vercel/
+
 
 # Binaries
 *.exe
