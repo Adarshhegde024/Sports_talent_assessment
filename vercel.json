@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://sports-talent-assessment.onrender.com/api/:path*"
+    }
+  ]
+}
