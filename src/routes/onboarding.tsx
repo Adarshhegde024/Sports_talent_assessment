@@ -52,10 +52,10 @@ function Onboarding() {
 
   const [form, setForm] = useState<AthleteProfile>({
     name: profile?.name || (user?.user_metadata?.["full_name"] as string) || "",
-    age: profile?.age || 18,
+    age: profile?.age || undefined,
     gender: profile?.gender || "prefer-not-to-say",
-    heightCm: profile?.heightCm || 175,
-    fitnessLevel: profile?.fitnessLevel || "recreational",
+    heightCm: profile?.heightCm || undefined,
+    fitnessLevel: profile?.fitnessLevel || undefined,
     preferredSports: profile?.preferredSports || [],
   });
 
@@ -93,7 +93,7 @@ function Onboarding() {
 
     const score = calculateProfileCompleteness(form);
     if (score >= 100) {
-      toast.success("Profile is 100% updated! You can now proceed to take assessments.", {
+      toast.success("Profile is 100% complete! You can now proceed to take assessments.", {
         duration: 5000,
         icon: "🎉",
       });
@@ -135,10 +135,13 @@ function Onboarding() {
                 <Input
                   id="age"
                   type="number"
-                  min={10}
-                  max={80}
-                  value={form.age}
-                  onChange={(e) => setForm({ ...form, age: Number(e.target.value) })}
+                  min={8}
+                  max={90}
+                  placeholder="e.g. 21"
+                  value={form.age ?? ""}
+                  onChange={(e) =>
+                    setForm({ ...form, age: e.target.value ? Number(e.target.value) : undefined })
+                  }
                   className="h-11 rounded-xl"
                 />
               </div>
@@ -147,10 +150,16 @@ function Onboarding() {
                 <Input
                   id="height"
                   type="number"
-                  min={120}
-                  max={230}
-                  value={form.heightCm}
-                  onChange={(e) => setForm({ ...form, heightCm: Number(e.target.value) })}
+                  min={100}
+                  max={240}
+                  placeholder="e.g. 175"
+                  value={form.heightCm ?? ""}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      heightCm: e.target.value ? Number(e.target.value) : undefined,
+                    })
+                  }
                   className="h-11 rounded-xl"
                 />
               </div>
@@ -176,11 +185,11 @@ function Onboarding() {
               <div className="space-y-2">
                 <Label>Fitness level</Label>
                 <Select
-                  value={form.fitnessLevel}
+                  value={form.fitnessLevel ?? ""}
                   onValueChange={(v) => setForm({ ...form, fitnessLevel: v as FitnessLevel })}
                 >
                   <SelectTrigger className="h-11 rounded-xl">
-                    <SelectValue />
+                    <SelectValue placeholder="Select fitness level" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="beginner">Beginner</SelectItem>

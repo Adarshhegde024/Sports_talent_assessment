@@ -105,9 +105,37 @@ function Dashboard() {
           <StatCard
             label="Profile Completeness"
             value={String(profileCompleteness)}
-            suffix={profileCompleteness >= 100 ? "%" : "% (Incomplete)"}
+            suffix={profileCompleteness >= 100 ? "% (Complete)" : "% (Incomplete)"}
           />
         </div>
+
+        {profileCompleteness < 100 && (
+          <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-950 dark:text-amber-200 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 font-bold text-sm">
+                {profileCompleteness}%
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-amber-900 dark:text-amber-200">
+                  Complete Your Athlete Profile
+                </h3>
+                <p className="mt-0.5 text-xs text-amber-800/80 dark:text-amber-300/80">
+                  Fill in your age, height, and fitness level so the AI can calibrate your movement metrics and predict your optimal sporting pathways.
+                </p>
+              </div>
+            </div>
+            <Button
+              asChild
+              size="sm"
+              className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs h-9 shadow-sm"
+            >
+              <Link to="/onboarding" className="flex items-center gap-1.5">
+                <span>Complete Profile Now</span>
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </Button>
+          </div>
+        )}
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
           <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">

@@ -113,12 +113,61 @@ async def analyze_jump_legacy_endpoint(
 
 from pydantic import BaseModel
 
+import datetime
+
 class ComprehensiveReportRequest(BaseModel):
+    user_id: Optional[str] = None
     athlete_name: Optional[str] = "Athlete"
     athlete_height_cm: Optional[float] = 175.0
     age: Optional[float] = 18.0
     fitness_level: Optional[str] = "recreational"
     performance_metrics: Optional[List[Dict[str, Any]]] = None
+
+class SaveTalentReportPayload(BaseModel):
+    user_id: str
+    report_data: Dict[str, Any]
+    primary_sport: str
+    compatibility_score: float
+    is_complete: bool = True
+
+TALENT_REPORTS_STORE: Dict[str, Dict[str, Any]] = {}
+
+@router.post("/talent-report/save")
+async def save_talent_report_endpoint(payload: SaveTalentReportPayload):
+    """
+    Persists or updates the definitive comprehensive talent report for the specified user.
+    """
+    user_id = payload.user_id
+    now_str = datetime.datetime.now().isoformat()
+    record = {
+        "user_id": user_id,
+        "primary_sport": payload.primary_sport,
+        "compatibility_score": payload.compatibility_score,
+        "is_complete": payload.is_complete,
+        "report_data": payload.report_data,
+        "updated_at": now_str,
+    }
+    TALENT_REPORTS_STORE[user_id] = record
+    logger.info(f"Persisted talent report for user: {user_id} (primary sport: {payload.primary_sport})")
+    return {"status": "saved", "user_id": user_id, "updated_at": now_str}
+
+@router.get("/talent-report/{user_id}")
+async def get_talent_report_endpoint(user_id: str):
+    """
+    Retrieves the persisted final talent discovery report for the specified user.
+    """
+    record = TALENT_REPORTS_STORE.get(user_id)
+    if not record:
+        raise HTTPException(status_code=404, detail=f"No stored talent report found for user {user_id}")
+    return {
+        "status": "success",
+        "user_id": user_id,
+        "primary_sport": record.get("primary_sport"),
+        "compatibility_score": record.get("compatibility_score"),
+        "is_complete": record.get("is_complete"),
+        "report": record.get("report_data"),
+        "updated_at": record.get("updated_at"),
+    }
 
 @router.post("/comprehensive-talent-report")
 async def comprehensive_talent_report_endpoint(request: ComprehensiveReportRequest):
@@ -134,12 +183,18 @@ async def comprehensive_talent_report_endpoint(request: ComprehensiveReportReque
         {"key": "coordination", "label": "Coordination", "value": 84, "unit": "/100"},
     ]
 
-    metric_map = {m.get("key", ""): float(m.get("value", 75)) for m in metrics}
-    exp = metric_map.get("explosive-power", 80.0)
-    st = metric_map.get("strength", 80.0)
-    bal = metric_map.get("balance", 80.0)
-    agi = metric_map.get("agility", 80.0)
-    coo = metric_map.get("coordination", 80.0)
+    metric_map = {}
+    for m in (request.performance_metrics or []):
+        k = m.get("key", "")
+        v = float(m.get("value", 0))
+        if v > 0:
+            metric_map[k] = v
+
+    exp = metric_map.get("explosive-power", 82.0)
+    st = metric_map.get("strength", 78.0)
+    bal = metric_map.get("balance", 84.0)
+    agi = metric_map.get("agility", 82.0)
+    coo = metric_map.get("coordination", 82.0)
 
     height = float(request.athlete_height_cm or 175.0)
     age = float(request.age or 18.0)
@@ -169,7 +224,7 @@ async def comprehensive_talent_report_endpoint(request: ComprehensiveReportReque
         performance_metrics=metrics,
     )
 
-    return {
+    result = {
         "status": "success",
         "primary_sport": primary_sport,
         "top_score": top_score,
@@ -177,4 +232,20 @@ async def comprehensive_talent_report_endpoint(request: ComprehensiveReportReque
         "performance_metrics": metrics,
         "talent_report": talent_report,
     }
+
+    # Automatically persist for user if user_id is provided
+    if request.user_id:
+        now_str = datetime.datetime.now().isoformat()
+        TALENT_REPORTS_STORE[request.user_id] = {
+            "user_id": request.user_id,
+            "primary_sport": primary_sport,
+            "compatibility_score": top_score,
+            "is_complete": True,
+            "report_data": result,
+            "updated_at": now_str,
+        }
+        result["stored_in_db"] = True
+        result["user_id"] = request.user_id
+
+    return result
 

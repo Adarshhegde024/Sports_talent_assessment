@@ -1,18 +1,48 @@
 {
-  "name": "SportSense AI — Sports Talent Assessment",
+  "name": "SportSense AI — Olympic Talent Assessment",
   "short_name": "SportSense AI",
-  "description": "AI-powered sports talent assessment and athletic performance profiling platform.",
+  "description": "AI-powered sports talent discovery, movement analysis, and athletic performance profiling.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#090d10",
+  "background_color": "#09090b",
   "theme_color": "#059669",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
     {
       "src": "/favicon.ico",
       "sizes": "64x64 32x32 24x24 16x16",
       "type": "image/x-icon"
     }
   ],
-  "categories": ["sports", "health", "fitness", "utilities"]
+  "shortcuts": [
+    {
+      "name": "Record Assessment",
+      "short_name": "Record",
+      "description": "Start camera recording or upload video dataset",
+      "url": "/assessments",
+      "icons": [{ "src": "/icon.svg", "sizes": "512x512" }]
+    },
+    {
+      "name": "Talent Report",
+      "short_name": "Report",
+      "description": "View your final sport recommendation and practice roadmap",
+      "url": "/talent-report",
+      "icons": [{ "src": "/icon.svg", "sizes": "512x512" }]
+    },
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View athlete overview and recent activity",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icon.svg", "sizes": "512x512" }]
+    }
+  ],
+  "categories": ["sports", "health", "fitness", "productivity"]
 }

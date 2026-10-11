@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#emeraldGrad)"/>
+  <!-- Athlete Head -->
+  <circle cx="256" cy="150" r="46" fill="#ffffff"/>
+  <!-- Torso & Arms -->
+  <path d="M140 250 L225 210 L287 210 L372 250" stroke="#ffffff" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Kinetic Chain Body -->
+  <path d="M256 210 L256 320" stroke="#ffffff" stroke-width="34" stroke-linecap="round"/>
+  <!-- Sprint/Jump Legs -->
+  <path d="M180 430 L220 320 L256 320 L292 320 L332 430" stroke="url(#accentGrad)" stroke-width="36" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Power Spark Badge -->
+  <circle cx="370" cy="140" r="24" fill="#fbbf24"/>
+  <polygon points="370,122 376,136 390,138 379,148 382,162 370,154 358,162 361,148 350,138 364,136" fill="#ffffff"/>
+</svg>

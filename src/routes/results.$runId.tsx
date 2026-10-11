@@ -19,6 +19,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { getAssessmentHistory, getResults } from "@/lib/api";
 import { ASSESSMENTS, DISCLAIMER } from "@/data/mock";
 import { useAuth } from "@/lib/auth-context";
+import { LiveCoachInsight } from "@/components/coach/LiveCoachInsight";
 
 export const Route = createFileRoute("/results/$runId")({
   head: () => ({
@@ -152,16 +153,25 @@ function ResultsPage() {
           </div>
         </section>
 
-        {/* AI Biomechanical Analysis & Technique Observations */}
-        <section className="mt-6 rounded-2xl bg-zinc-950 p-6 text-white shadow-xl sm:p-8 border border-white/10">
-          <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-wider">
-            <Sparkles className="size-4" />
-            <span>Olympic Biomechanics Coach Analysis</span>
-          </div>
-          <h3 className="mt-2 text-xl font-bold">Technique & Movement Efficiency</h3>
-          <p className="mt-3 text-sm text-zinc-300 leading-relaxed max-w-3xl">
-            {data.explanation}
-          </p>
+        {/* Real-time AI Biomechanical Analysis & Technique Observations */}
+        <section className="mt-6">
+          <LiveCoachInsight
+            assessmentSlug={data.assessmentId || "vertical-jump"}
+            athleteName={
+              (user?.user_metadata?.["full_name"] as string) ||
+              (user?.user_metadata?.["name"] as string) ||
+              user?.email?.split("@")[0] ||
+              "Athlete"
+            }
+            kinematics={{
+              headline_val: data.headline.value,
+              headline_unit: data.headline.unit,
+            }}
+            topSport={data.suitability?.[0]?.sport || "Basketball"}
+            sportScores={data.suitability || []}
+            performanceMetrics={data.metrics || []}
+            initialExplanation={data.explanation}
+          />
         </section>
 
         {/* TALENT BATTERY PROGRESSION SECTION */}

@@ -102,29 +102,41 @@ class ModelRegistry:
         xgb_probs = self.models["XGBoost"].predict_proba(feat_scaled)[0]
         probs = 0.5 * rf_probs + 0.5 * xgb_probs
 
-        # Heuristic athletic affinity weights
-        weights = {
-            "Basketball": (explosive_power * 0.35) + (agility * 0.25) + (height_bonus(athlete_height_cm, 185) * 0.25) + (coordination * 0.15),
-            "Volleyball": (explosive_power * 0.40) + (balance * 0.20) + (coordination * 0.25) + (height_bonus(athlete_height_cm, 182) * 0.15),
-            "Football": (agility * 0.35) + (strength * 0.25) + (balance * 0.20) + (coordination * 0.20),
-            "Tennis": (agility * 0.30) + (strength * 0.25) + (coordination * 0.25) + (balance * 0.20),
-            "Badminton": (agility * 0.38) + (coordination * 0.28) + (balance * 0.24) + (explosive_power * 0.10),
-            "Cricket": (balance * 0.30) + (coordination * 0.30) + (strength * 0.25) + (agility * 0.15),
+        # Dynamic trait-dominant athletic affinities
+        h_factor = float(np.clip(75.0 + (athlete_height_cm - 175.0) * 0.8, 60.0, 95.0))
+        affinities = {
+            "Volleyball": (0.45 * explosive_power) + (0.25 * balance) + (0.20 * coordination) + (0.10 * strength),
+            "Basketball": (0.38 * explosive_power) + (0.28 * agility) + (0.18 * h_factor) + (0.16 * coordination),
+            "Football": (0.38 * agility) + (0.28 * strength) + (0.18 * explosive_power) + (0.16 * balance),
+            "Tennis": (0.32 * agility) + (0.26 * balance) + (0.24 * strength) + (0.18 * coordination),
+            "Badminton": (0.42 * agility) + (0.32 * coordination) + (0.16 * balance) + (0.10 * explosive_power),
+            "Cricket": (0.38 * balance) + (0.32 * coordination) + (0.18 * strength) + (0.12 * agility),
         }
 
-        scores = []
-        for i, sport_name in enumerate(self.SPORTS):
-            raw_prob = probs[i]
-            base_score = 45.0 + (raw_prob * 120.0) + (weights[sport_name] * 0.35)
-            final_score = int(np.clip(base_score, 45, 96))
-            scores.append({"sport": sport_name, "score": final_score})
+        # Sport-to-class index mapping
+        sport_to_idx = {name: idx for idx, name in enumerate(self.SPORTS)}
 
-        scores.sort(key=lambda x: x["score"], reverse=True)
+        scores = []
+        prior = 1.0 / len(self.SPORTS)
+        for sport_name, aff in affinities.items():
+            idx = sport_to_idx[sport_name]
+            ml_prob = float(probs[idx])
+            # Balanced synthesis: kinematic affinity baseline with ML classifier probability boost
+            prob_boost = (ml_prob - prior) * 25.0
+            blended_score = aff + prob_boost
+            # Calibrated scoring between 55% - 96%
+            scaled_score = int(np.clip(blended_score, 55, 96))
+            scores.append({"sport": sport_name, "score": scaled_score, "raw_affinity": aff})
+
+        # Sort descending by score, tie-breaking by raw affinity so ties never occur
+        scores.sort(key=lambda x: (x["score"], x["raw_affinity"]), reverse=True)
+
+        clean_scores = [{"sport": s["sport"], "score": s["score"]} for s in scores]
 
         return {
-            "top_match": scores[0]["sport"],
-            "top_score": scores[0]["score"],
-            "sport_scores": scores,
+            "top_match": clean_scores[0]["sport"],
+            "top_score": clean_scores[0]["score"],
+            "sport_scores": clean_scores,
             "profile_traits": {
                 "explosive_power": int(explosive_power),
                 "strength": int(strength),

@@ -74,8 +74,17 @@ function getPasswordStrength(pass: string): {
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { signIn, signUp, resetPassword, user, getRememberedEmail, rememberEmail, clearRememberedEmail } =
-    useAuth();
+  const {
+    signIn,
+    signUp,
+    resetPassword,
+    user,
+    oauthError,
+    clearOAuthError,
+    getRememberedEmail,
+    rememberEmail,
+    clearRememberedEmail,
+  } = useAuth();
 
   const [mode, setMode] = useState<AuthMode>("signin");
   const [method, setMethod] = useState<AuthMethod>("email");
@@ -112,6 +121,15 @@ function LoginPage() {
     }
   }, [getRememberedEmail]);
 
+  // Handle incoming OAuth errors
+  useEffect(() => {
+    if (oauthError) {
+      setErrorMsg(oauthError);
+      toast.error("Authentication note", { description: oauthError });
+      clearOAuthError();
+    }
+  }, [oauthError, clearOAuthError]);
+
   // Redirect if user is already authenticated
   useEffect(() => {
     if (user) {
@@ -133,7 +151,16 @@ function LoginPage() {
       setIsSubmitting(false);
 
       if (error) {
-        setErrorMsg(error.message || "Invalid credentials. Please verify your email and password.");
+        if (error.message.toLowerCase().includes("email not confirmed")) {
+          setErrorMsg("Your email has not been verified yet. Please check your inbox for the confirmation email from Supabase.");
+        } else if (
+          error.message.toLowerCase().includes("invalid login credentials") ||
+          error.message.toLowerCase().includes("invalid_credentials")
+        ) {
+          setErrorMsg("Incorrect email or password. Please verify your details or use 'Create Account' if you are new.");
+        } else {
+          setErrorMsg(error.message || "Invalid credentials. Please verify your email and password.");
+        }
         toast.error("Sign in failed");
       } else {
         if (saveCredentials) {
@@ -162,12 +189,29 @@ function LoginPage() {
       setIsSubmitting(true);
       const cleanEmail = email.trim();
       const cleanName = fullName.trim();
-      const { error } = await signUp(cleanEmail, password, cleanName, phoneNumber.trim() || undefined);
+      const { error, needsEmailConfirmation } = await signUp(
+        cleanEmail,
+        password,
+        cleanName,
+        phoneNumber.trim() || undefined,
+      );
       setIsSubmitting(false);
 
       if (error) {
-        setErrorMsg(error.message || "Failed to create account. Please check your details.");
+        if (
+          error.message.toLowerCase().includes("already registered") ||
+          error.message.toLowerCase().includes("user already exists")
+        ) {
+          setErrorMsg("An account with this email already exists. Please switch to Sign In above.");
+        } else {
+          setErrorMsg(error.message || "Failed to create account. Please check your details.");
+        }
         toast.error("Sign up failed");
+      } else if (needsEmailConfirmation) {
+        setSuccessMsg(
+          "Account created! We've sent a verification link to your email. Please check your inbox to confirm your account, then sign in.",
+        );
+        toast.success("Verification email dispatched!");
       } else {
         if (saveCredentials) {
           rememberEmail(cleanEmail);
@@ -176,7 +220,7 @@ function LoginPage() {
         toast.success("Account created successfully!");
         setTimeout(() => {
           navigate({ to: "/dashboard" });
-        }, 1200);
+        }, 1000);
       }
     }
   };

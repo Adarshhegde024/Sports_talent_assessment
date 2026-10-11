@@ -120,7 +120,11 @@ SET
 
 INSERT INTO public.assessments (name, slug, description, is_active)
 VALUES
-  ('Vertical Jump', 'vertical-jump', 'Measures explosive lower-body power and peak flight time using smartphone video pose estimation.', true)
+  ('Vertical Jump', 'vertical-jump', 'Measures explosive lower-body power and peak flight time using smartphone video pose estimation.', true),
+  ('Squat', 'squat', 'Assesses lower-body movement, stability, depth, and kinematic consistency.', true),
+  ('Single-Leg Balance', 'single-leg-balance', 'Assesses balance, core stability, and postural sway control on single leg.', true),
+  ('Push-Up', 'push-up', 'Assesses upper-body muscular endurance and full range of motion repetition cadence.', true),
+  ('Side-to-Side Agility', 'side-to-side-agility', 'Assesses lateral change-of-direction speed, deceleration control, and quickness.', true)
 ON CONFLICT (slug) DO UPDATE
 SET
   name = EXCLUDED.name,
@@ -251,3 +255,49 @@ CREATE POLICY "Users can view video in own folder"
     auth.role() = 'authenticated' AND
     (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- ====================================================================
+-- TABLE: talent_reports (Synthesized Final Talent Discovery Reports)
+-- ====================================================================
+CREATE TABLE IF NOT EXISTS public.talent_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  primary_sport TEXT NOT NULL,
+  compatibility_score NUMERIC NOT NULL,
+  is_complete BOOLEAN NOT NULL DEFAULT FALSE,
+  report_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_talent_reports_user ON public.talent_reports(user_id);
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'talent_reports') THEN
+    ALTER TABLE public.talent_reports ENABLE ROW LEVEL SECURITY;
+
+    DROP POLICY IF EXISTS "Users can view own talent report" ON public.talent_reports;
+    CREATE POLICY "Users can view own talent report"
+      ON public.talent_reports FOR SELECT
+      USING (auth.uid() = user_id);
+
+    DROP POLICY IF EXISTS "Users can insert own talent report" ON public.talent_reports;
+    CREATE POLICY "Users can insert own talent report"
+      ON public.talent_reports FOR INSERT
+      WITH CHECK (auth.uid() = user_id);
+
+    DROP POLICY IF EXISTS "Users can update own talent report" ON public.talent_reports;
+    CREATE POLICY "Users can update own talent report"
+      ON public.talent_reports FOR UPDATE
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+
+    DROP POLICY IF EXISTS "Users can delete own talent report" ON public.talent_reports;
+    CREATE POLICY "Users can delete own talent report"
+      ON public.talent_reports FOR DELETE
+      USING (auth.uid() = user_id);
+  END IF;
+END $$;
+

@@ -134,6 +134,7 @@ class VerticalJumpAnalyzer:
         min_knee_angle = int(np.min(knee_angles)) if knee_angles and len(knee_angles) > 0 else 85
 
         return {
+            "assessment_slug": "vertical-jump",
             "jump_height_cm": round(calibrated_jump_cm, 1),
             "flight_time_sec": round(flight_time_sec, 3),
             "takeoff_velocity_mps": round(takeoff_velocity, 2),
@@ -144,6 +145,9 @@ class VerticalJumpAnalyzer:
             "takeoff_frame": takeoff_idx,
             "apex_frame": apex_idx,
             "landing_frame": landing_idx,
+            "headline_label": "Jump Height",
+            "headline_value": f"{round(calibrated_jump_cm, 1)} cm",
+            "headline_unit": "cm",
         }
 
     def generate_calibrated_jump(self, athlete_height_cm: float, attempt_idx: int = 1) -> Dict[str, Any]:
@@ -162,6 +166,7 @@ class VerticalJumpAnalyzer:
         symmetry_score = int(np.clip(92 + np.random.uniform(-3, 5), 84, 99))
 
         return {
+            "assessment_slug": "vertical-jump",
             "jump_height_cm": round(jump_height_cm, 1),
             "flight_time_sec": round(flight_time_sec, 3),
             "takeoff_velocity_mps": round(takeoff_velocity, 2),
@@ -172,4 +177,7 @@ class VerticalJumpAnalyzer:
             "takeoff_frame": 12,
             "apex_frame": 24,
             "landing_frame": 36,
+            "headline_label": "Jump Height",
+            "headline_value": f"{round(jump_height_cm, 1)} cm",
+            "headline_unit": "cm",
         }

@@ -53,20 +53,20 @@ function ProfilePage() {
 
   const [editForm, setEditForm] = useState<AthleteProfile>({
     name: profile?.name || "",
-    age: profile?.age || 18,
+    age: profile?.age || undefined,
     gender: profile?.gender || "prefer-not-to-say",
-    heightCm: profile?.heightCm || 175,
-    fitnessLevel: profile?.fitnessLevel || "recreational",
+    heightCm: profile?.heightCm || undefined,
+    fitnessLevel: profile?.fitnessLevel || undefined,
     preferredSports: profile?.preferredSports || [],
   });
 
   const startEditing = () => {
     setEditForm({
       name: profile?.name || "",
-      age: profile?.age || 18,
+      age: profile?.age || undefined,
       gender: profile?.gender || "prefer-not-to-say",
-      heightCm: profile?.heightCm || 175,
-      fitnessLevel: profile?.fitnessLevel || "recreational",
+      heightCm: profile?.heightCm || undefined,
+      fitnessLevel: profile?.fitnessLevel || undefined,
       preferredSports: profile?.preferredSports || [],
     });
     setIsEditing(true);
@@ -90,7 +90,7 @@ function ProfilePage() {
     setIsEditing(false);
     const score = calculateProfileCompleteness(editForm);
     if (score >= 100) {
-      toast.success("Profile is 100% updated! You can now proceed to take assessments.", {
+      toast.success("Profile is 100% complete! You can now proceed to take assessments.", {
         duration: 5000,
         icon: "🎉",
       });
@@ -109,10 +109,15 @@ function ProfilePage() {
   const rows = [
     { label: "Full Name", value: profile.name || "—" },
     { label: "Account Email", value: user?.email || "—" },
-    { label: "Age", value: profile.age ? `${profile.age} years` : "—" },
-    { label: "Height", value: profile.heightCm ? `${profile.heightCm} cm` : "—" },
+    { label: "Age", value: profile.age ? `${profile.age} years` : "Not set" },
+    { label: "Height", value: profile.heightCm ? `${profile.heightCm} cm` : "Not set" },
     { label: "Gender", value: profile.gender ?? "Prefer not to say" },
-    { label: "Fitness Level", value: profile.fitnessLevel },
+    {
+      label: "Fitness Level",
+      value: profile.fitnessLevel
+        ? profile.fitnessLevel.charAt(0).toUpperCase() + profile.fitnessLevel.slice(1)
+        : "Not set",
+    },
     {
       label: "Preferred Sports",
       value: profile.preferredSports?.length ? profile.preferredSports.join(", ") : "None selected",
@@ -182,10 +187,16 @@ function ProfilePage() {
                 <Input
                   id="editAge"
                   type="number"
-                  min={10}
-                  max={80}
-                  value={editForm.age}
-                  onChange={(e) => setEditForm({ ...editForm, age: Number(e.target.value) })}
+                  min={8}
+                  max={90}
+                  placeholder="e.g. 21"
+                  value={editForm.age ?? ""}
+                  onChange={(e) =>
+                    setEditForm({
+                      ...editForm,
+                      age: e.target.value ? Number(e.target.value) : undefined,
+                    })
+                  }
                   className="h-10 rounded-xl"
                 />
               </div>
@@ -197,10 +208,16 @@ function ProfilePage() {
                 <Input
                   id="editHeight"
                   type="number"
-                  min={120}
-                  max={230}
-                  value={editForm.heightCm}
-                  onChange={(e) => setEditForm({ ...editForm, heightCm: Number(e.target.value) })}
+                  min={100}
+                  max={240}
+                  placeholder="e.g. 175"
+                  value={editForm.heightCm ?? ""}
+                  onChange={(e) =>
+                    setEditForm({
+                      ...editForm,
+                      heightCm: e.target.value ? Number(e.target.value) : undefined,
+                    })
+                  }
                   className="h-10 rounded-xl"
                 />
               </div>
@@ -228,11 +245,11 @@ function ProfilePage() {
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Fitness Level</Label>
                 <Select
-                  value={editForm.fitnessLevel}
+                  value={editForm.fitnessLevel ?? ""}
                   onValueChange={(v) => setEditForm({ ...editForm, fitnessLevel: v as FitnessLevel })}
                 >
                   <SelectTrigger className="h-10 rounded-xl">
-                    <SelectValue />
+                    <SelectValue placeholder="Select fitness level" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="beginner">Beginner</SelectItem>

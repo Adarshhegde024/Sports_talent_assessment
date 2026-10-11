@@ -48,3 +48,8 @@ Thumbs.db
 
 # Build output
 .output/
+
+# Binaries
+*.exe
+cloudflared*
+

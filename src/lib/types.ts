@@ -4,11 +4,11 @@ export type FitnessLevel = "beginner" | "recreational" | "trained" | "competitiv
 
 export interface AthleteProfile {
   name: string;
-  age: number;
-  gender?: "female" | "male" | "other" | "prefer-not-to-say";
-  heightCm: number;
-  fitnessLevel: FitnessLevel;
-  preferredSports?: string[];
+  age?: number | undefined;
+  gender?: "female" | "male" | "other" | "prefer-not-to-say" | undefined;
+  heightCm?: number | undefined;
+  fitnessLevel?: FitnessLevel | undefined;
+  preferredSports?: string[] | undefined;
 }
 
 export interface AssessmentDefinition {

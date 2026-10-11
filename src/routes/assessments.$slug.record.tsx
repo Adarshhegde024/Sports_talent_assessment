@@ -73,6 +73,8 @@ function RecordPage() {
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
+
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -80,15 +82,20 @@ function RecordPage() {
 
   useEffect(() => () => stopStream(), [stopStream]);
 
-  const requestCamera = useCallback(async () => {
+  const requestCamera = useCallback(async (overrideFacing?: "environment" | "user") => {
+    const targetFacing = overrideFacing || facingMode;
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setPermission("unsupported");
       return;
     }
     setPermission("requesting");
     try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 } },
+        video: { facingMode: targetFacing, width: { ideal: 1280 } },
         audio: false,
       });
       streamRef.current = stream;
@@ -100,7 +107,13 @@ function RecordPage() {
     } catch {
       setPermission("denied");
     }
-  }, []);
+  }, [facingMode]);
+
+  const toggleFacingMode = useCallback(() => {
+    const next = facingMode === "environment" ? "user" : "environment";
+    setFacingMode(next);
+    void requestCamera(next);
+  }, [facingMode, requestCamera]);
 
   useEffect(() => {
     if (mode === "camera" && stage === "record" && permission === "granted" && videoRef.current && streamRef.current) {
@@ -205,6 +218,7 @@ function RecordPage() {
     await uploadAttempts(run.id, attempts, setProgress, testSlug);
     await queryClient.invalidateQueries({ queryKey: ["metrics"] });
     await queryClient.invalidateQueries({ queryKey: ["history"] });
+    await queryClient.invalidateQueries({ queryKey: ["results"] });
     stopStream();
     resetAttempts();
     navigate({ to: "/results/$runId", params: { runId: run.id } });
@@ -274,7 +288,18 @@ function RecordPage() {
                   className="size-full object-cover"
                 />
                 {permission === "granted" && (
-                  <PoseDetectionOverlay videoRef={videoRef} isRecording={false} />
+                  <>
+                    <PoseDetectionOverlay videoRef={videoRef} isRecording={false} />
+                    <button
+                      type="button"
+                      onClick={toggleFacingMode}
+                      className="absolute top-3 right-3 z-30 flex items-center gap-1.5 rounded-full bg-zinc-950/80 border border-white/20 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-zinc-900 transition-all active:scale-95 shadow-md"
+                      title="Flip Camera (Front / Rear)"
+                    >
+                      <RotateCcw className="size-3.5 text-emerald-400" />
+                      <span>{facingMode === "environment" ? "Rear Camera" : "Selfie Camera"}</span>
+                    </button>
+                  </>
                 )}
                 {permission !== "granted" && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-inverse-foreground bg-zinc-950/90 backdrop-blur-sm">
@@ -286,17 +311,30 @@ function RecordPage() {
                       {permission === "denied"
                         ? "Camera access was blocked. Please enable permissions in your browser address bar and retry."
                         : permission === "unsupported"
-                          ? "This browser does not support camera capture. Please use Video Upload mode above."
+                          ? "Mobile browsers restrict live webcam over plain HTTP. Tap below to record directly with your phone's camera app or use video upload."
                           : "We use your camera for real-time edge & joint detection. Video is processed locally on your machine."}
                     </p>
-                    <Button onClick={requestCamera} disabled={permission === "requesting"} className="mt-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
-                      {permission === "requesting" ? (
-                        <Loader2 className="size-4 animate-spin mr-2" />
-                      ) : (
-                        <Camera className="size-4 mr-2" />
-                      )}
-                      {permission === "denied" ? "Retry Camera Access" : "Enable Live Camera"}
-                    </Button>
+                    {permission === "unsupported" ? (
+                      <Button
+                        onClick={() => {
+                          stopStream();
+                          setMode("upload");
+                        }}
+                        className="mt-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                      >
+                        <UploadCloud className="size-4 mr-2" />
+                        Record with Phone Camera / Upload
+                      </Button>
+                    ) : (
+                      <Button onClick={() => void requestCamera()} disabled={permission === "requesting"} className="mt-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+                        {permission === "requesting" ? (
+                          <Loader2 className="size-4 animate-spin mr-2" />
+                        ) : (
+                          <Camera className="size-4 mr-2" />
+                        )}
+                        {permission === "denied" ? "Retry Camera Access" : "Enable Live Camera"}
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -478,6 +516,17 @@ function RecordPage() {
                 <video ref={videoRef} playsInline muted className="size-full object-cover" />
                 {permission === "granted" && (
                   <PoseDetectionOverlay videoRef={videoRef} isRecording={isRecording} />
+                )}
+                {!isRecording && permission === "granted" && (
+                  <button
+                    type="button"
+                    onClick={toggleFacingMode}
+                    className="absolute top-4 right-4 z-30 flex items-center gap-1.5 rounded-full bg-zinc-950/80 border border-white/20 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-zinc-900 transition-all active:scale-95 shadow-md"
+                    title="Flip Camera (Front / Rear)"
+                  >
+                    <RotateCcw className="size-3.5 text-emerald-400" />
+                    <span>{facingMode === "environment" ? "Rear View" : "Selfie View"}</span>
+                  </button>
                 )}
                 <div className="pointer-events-none absolute inset-6 rounded-xl border-2 border-dashed border-primary/70" />
                 <div className="pointer-events-none absolute left-1/2 top-6 bottom-6 w-px -translate-x-1/2 bg-primary/30" />

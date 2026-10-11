@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: sportsense-api
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    envVars:
+      - key: SUPABASE_URL
+        value: https://byceifewwxvjicrrbdps.supabase.co
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+    healthCheckPath: /api/health

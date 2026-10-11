@@ -1,0 +1,59 @@
+services:
+  # ====================================================================
+  # SportSense AI — Python FastAPI Biomechanical & ML Engine
+  # ====================================================================
+  backend:
+    container_name: sportsense-backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      - SUPABASE_URL=${SUPABASE_URL:-https://byceifewwxvjicrrbdps.supabase.co}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-}
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET:-}
+      - CORS_ORIGINS=*
+      - GRAVITY=9.80665
+      - MAX_UPLOAD_SIZE_MB=50
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ====================================================================
+  # SportSense AI — Web & PWA Frontend (Preview / Production Serve)
+  # ====================================================================
+  frontend:
+    container_name: sportsense-frontend
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM node:20-alpine AS builder
+        WORKDIR /app
+        COPY package*.json ./
+        RUN npm ci
+        COPY . .
+        RUN npm run build
+
+        FROM node:20-alpine
+        WORKDIR /app
+        RUN npm install -g serve
+        COPY --from=builder /app/dist ./dist
+        EXPOSE 8080
+        CMD ["serve", "-s", "dist", "-l", "8080"]
+    ports:
+      - "8080:8080"
+    environment:
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL:-https://byceifewwxvjicrrbdps.supabase.co}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY:-sb_publishable_JiwS7sh_BtwIu75FRJkHIg_TNXo9R2P}
+      - VITE_API_BASE_URL=http://localhost:8000/api
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped

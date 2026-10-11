@@ -52,6 +52,6 @@ class ResponseFormatter:
 
             parsed = json.loads(clean)
             validated = CoachingReportSchema(**parsed)
-            return validated.dict()
+            return validated.model_dump()
         except Exception:
             return None

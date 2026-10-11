@@ -17,20 +17,26 @@ const PROFILE_KEY = "sportsense.profile";
 export function calculateProfileCompleteness(profile: AthleteProfile | null): number {
   if (!profile) return 0;
   let score = 0;
-  // Full name (25%)
-  if (profile.name && profile.name.trim().length > 0 && profile.name.trim().toLowerCase() !== "athlete") {
+  // 1. Full name (25%) - must have non-empty non-placeholder name
+  const name = profile.name?.trim();
+  if (name && name.length > 0 && name.toLowerCase() !== "athlete" && name.toLowerCase() !== "marcus") {
     score += 25;
   }
-  // Age (25%)
-  if (profile.age && Number(profile.age) >= 10 && Number(profile.age) <= 100) {
+  // 2. Age (25%) - must be valid age entered by user
+  if (profile.age && typeof profile.age === "number" && profile.age >= 8 && profile.age <= 100) {
     score += 25;
   }
-  // Height (25%)
-  if (profile.heightCm && Number(profile.heightCm) >= 100 && Number(profile.heightCm) <= 250) {
+  // 3. Height (25%) - must be valid height in cm
+  if (profile.heightCm && typeof profile.heightCm === "number" && profile.heightCm >= 80 && profile.heightCm <= 260) {
     score += 25;
   }
-  // Fitness Level & Gender (25%)
-  if (profile.fitnessLevel || profile.gender) {
+  // 4. Fitness Level & Preferred Sports (25%)
+  const hasFitness = Boolean(
+    profile.fitnessLevel &&
+      ["beginner", "recreational", "trained", "competitive"].includes(profile.fitnessLevel),
+  );
+  const hasSports = Boolean(Array.isArray(profile.preferredSports) && profile.preferredSports.length > 0);
+  if (hasFitness || hasSports) {
     score += 25;
   }
   return Math.min(100, Math.max(0, score));
@@ -55,11 +61,12 @@ function readStoredProfile(): { profile: AthleteProfile; onboarded: boolean } {
     const raw = window.localStorage.getItem(PROFILE_KEY);
     if (!raw) return { profile: DEFAULT_PROFILE, onboarded: false };
     const parsed = JSON.parse(raw) as AthleteProfile;
-    // Discard any legacy mock "Marcus" in localStorage
+    // Discard legacy mock data
     if (parsed.name === "Marcus") {
       return { profile: DEFAULT_PROFILE, onboarded: false };
     }
-    return { profile: parsed, onboarded: true };
+    const score = calculateProfileCompleteness(parsed);
+    return { profile: parsed, onboarded: score >= 100 };
   } catch {
     return { profile: DEFAULT_PROFILE, onboarded: false };
   }
@@ -92,13 +99,13 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
       (user.user_metadata?.["full_name"] as string) ||
       (user.user_metadata?.["name"] as string) ||
       user.email?.split("@")[0] ||
-      "Athlete";
+      "";
 
     // Set immediate reactive name from auth metadata
     setState((prev) => ({
       profile: {
         ...prev.profile,
-        name: prev.profile.name === "Athlete" || prev.profile.name === "Marcus" ? initialName : prev.profile.name,
+        name: prev.profile.name && prev.profile.name !== "Athlete" && prev.profile.name !== "Marcus" ? prev.profile.name : initialName,
       },
       onboarded: prev.onboarded,
     }));
@@ -128,15 +135,17 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
 
           const athleteProfile: AthleteProfile = {
             name: profileData.full_name || initialName,
-            age: profileData.age ?? 18,
-            heightCm: profileData.height ?? 175,
-            fitnessLevel: profileData.fitness_level || "recreational",
+            age: profileData.age ? Number(profileData.age) : undefined,
+            heightCm: profileData.height ? Number(profileData.height) : undefined,
+            fitnessLevel: profileData.fitness_level || undefined,
             preferredSports,
           };
 
+          const completeness = calculateProfileCompleteness(athleteProfile);
+
           setState({
             profile: athleteProfile,
-            onboarded: Boolean(profileData.disclaimer_accepted || profileData.age),
+            onboarded: completeness >= 100,
           });
 
           try {
@@ -145,7 +154,7 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
             /* ignore */
           }
         } else if (!profileData && isMounted) {
-          // Auto-seed profile row for new user in Supabase
+          // Auto-seed empty profile row for new user in Supabase
           try {
             await supabase
               .from("profiles")
@@ -161,9 +170,9 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
 
           const freshProfile: AthleteProfile = {
             name: initialName,
-            age: 18,
-            heightCm: 175,
-            fitnessLevel: "recreational",
+            age: undefined,
+            heightCm: undefined,
+            fitnessLevel: undefined,
             preferredSports: [],
           };
 

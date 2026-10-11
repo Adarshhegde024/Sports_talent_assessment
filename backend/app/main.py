@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.config import settings
 from backend.app.core.logging import logger
-from backend.app.api.routes import health, profile, assessments, videos, results
+from backend.app.api.routes import health, profile, assessments, videos, results, coach
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -27,6 +27,7 @@ app.include_router(profile.router, prefix=settings.API_V1_PREFIX)
 app.include_router(assessments.router, prefix=settings.API_V1_PREFIX)
 app.include_router(videos.router, prefix=settings.API_V1_PREFIX)
 app.include_router(results.router, prefix=settings.API_V1_PREFIX)
+app.include_router(coach.router, prefix=settings.API_V1_PREFIX)
 
 logger.info(f"{settings.PROJECT_NAME} initialized successfully.")
 
