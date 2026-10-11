@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   Activity,
@@ -77,6 +77,7 @@ function LoginPage() {
   const {
     signIn,
     signUp,
+    signOut,
     resetPassword,
     user,
     oauthError,
@@ -86,6 +87,7 @@ function LoginPage() {
     clearRememberedEmail,
   } = useAuth();
 
+  const justSignedUpRef = useRef(false);
   const [mode, setMode] = useState<AuthMode>("signin");
   const [method, setMethod] = useState<AuthMethod>("email");
 
@@ -132,7 +134,7 @@ function LoginPage() {
 
   // Redirect if user is already authenticated
   useEffect(() => {
-    if (user) {
+    if (user && !justSignedUpRef.current) {
       navigate({ to: "/dashboard" });
     }
   }, [user, navigate]);
@@ -187,6 +189,7 @@ function LoginPage() {
       }
 
       setIsSubmitting(true);
+      justSignedUpRef.current = true;
       const cleanEmail = email.trim();
       const cleanName = fullName.trim();
       const { error, needsEmailConfirmation } = await signUp(
@@ -195,9 +198,10 @@ function LoginPage() {
         cleanName,
         phoneNumber.trim() || undefined,
       );
-      setIsSubmitting(false);
 
       if (error) {
+        justSignedUpRef.current = false;
+        setIsSubmitting(false);
         if (
           error.message.toLowerCase().includes("already registered") ||
           error.message.toLowerCase().includes("user already exists")
@@ -207,20 +211,37 @@ function LoginPage() {
           setErrorMsg(error.message || "Failed to create account. Please check your details.");
         }
         toast.error("Sign up failed");
-      } else if (needsEmailConfirmation) {
-        setSuccessMsg(
-          "Account created! We've sent a verification link to your email. Please check your inbox to confirm your account, then sign in.",
-        );
-        toast.success("Verification email dispatched!");
       } else {
+        // Sign out in case Supabase auto-logged in, ensuring user signs in explicitly
+        await signOut();
+        setIsSubmitting(false);
+
+        // Pre-fill email, clear passwords
+        setEmail(cleanEmail);
+        setPassword("");
+        setConfirmPassword("");
         if (saveCredentials) {
           rememberEmail(cleanEmail);
         }
-        setSuccessMsg("Account created successfully! Preparing your athlete dashboard...");
-        toast.success("Account created successfully!");
+
+        // Switch tab to Sign In
+        setMode("signin");
+
+        if (needsEmailConfirmation) {
+          setSuccessMsg(
+            `Account created! A confirmation link has been sent to ${cleanEmail}. Please check your inbox to confirm, then sign in below.`
+          );
+          toast.success("Account created! Please check your email to verify.");
+        } else {
+          setSuccessMsg(
+            "Account created successfully! Please enter your password below to sign in."
+          );
+          toast.success("Account created! Please sign in with your password.");
+        }
+
         setTimeout(() => {
-          navigate({ to: "/dashboard" });
-        }, 1000);
+          justSignedUpRef.current = false;
+        }, 1500);
       }
     }
   };

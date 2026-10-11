@@ -65,20 +65,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (errCode || errDesc) {
         let msg = errDesc || errCode || "OAuth authentication failed.";
+        const lowerDesc = (errDesc || "").toLowerCase();
+        const lowerCode = (errCode || "").toLowerCase();
+
         if (
-          errCode === "unsupported_provider" ||
-          errDesc?.toLowerCase().includes("external provider") ||
-          errDesc?.toLowerCase().includes("provider is not enabled") ||
-          errDesc?.toLowerCase().includes("unsupported")
+          lowerCode === "unsupported_provider" ||
+          lowerDesc.includes("external provider") ||
+          lowerDesc.includes("provider is not enabled") ||
+          lowerDesc.includes("unsupported")
         ) {
           msg =
-            "Google Sign-In is not yet enabled in your Supabase project. Please enable Google provider in your Supabase Authentication settings, or sign in using Email & Password.";
+            "Google Sign-In is not enabled in your Supabase project. Please enable Google provider in your Supabase Authentication settings, or sign in using Email & Password.";
         } else if (
-          errCode === "access_denied" ||
-          errDesc?.toLowerCase().includes("denied") ||
-          errDesc?.toLowerCase().includes("cancelled")
+          lowerCode === "access_denied" ||
+          lowerDesc.includes("denied") ||
+          lowerDesc.includes("cancelled")
         ) {
-          msg = "Google Sign-In was cancelled.";
+          msg =
+            "Google Sign-In was cancelled or access was restricted. (Note: In Google Cloud Console, ensure your OAuth Consent Screen is published to 'In production' so any user can log in).";
+        } else if (
+          lowerDesc.includes("redirect_uri") ||
+          lowerDesc.includes("redirect url")
+        ) {
+          msg =
+            "Redirect URL not allowed. Please verify that your production URL (https://sports-talent-assessment-green.vercel.app/**) is added to Supabase Auth -> Redirect URLs.";
         }
         setOauthError(msg);
 
@@ -92,33 +102,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // 2. Handle PKCE Code exchange if ?code= is present in URL
+    // 2. Fetch active session and handle PKCE Code safely
     async function initSession() {
       try {
-        if (typeof window !== "undefined" && window.location.search.includes("code=")) {
-          const params = new URLSearchParams(window.location.search);
-          const code = params.get("code");
-          if (code) {
-            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-            if (error) {
-              console.warn("PKCE code exchange note:", error);
-              setOauthError(error.message);
-            } else if (data.session) {
-              if (mounted) {
-                setSession(data.session);
-                setUser(data.session.user);
-              }
-              // Clean URL query
-              try {
-                window.history.replaceState({}, document.title, window.location.pathname);
-              } catch {
-                /* ignore */
-              }
-            }
-          }
-        }
-
-        // Fetch active session from Supabase
+        // Step A: Check if Supabase already detected and initialized the session
         const {
           data: { session: existingSession },
           error: sessionError,
@@ -128,8 +115,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn("Error retrieving Supabase session:", sessionError);
         }
 
+        if (existingSession) {
+          if (mounted) {
+            setSession(existingSession);
+            setUser(existingSession.user);
+            setIsLoading(false);
+          }
+          if (
+            typeof window !== "undefined" &&
+            (window.location.search.includes("code=") || window.location.hash.includes("access_token="))
+          ) {
+            try {
+              window.history.replaceState({}, document.title, window.location.pathname);
+            } catch {
+              /* ignore */
+            }
+          }
+          return;
+        }
+
+        // Step B: If no active session yet and code is present, attempt exchange
+        if (typeof window !== "undefined" && window.location.search.includes("code=")) {
+          const params = new URLSearchParams(window.location.search);
+          const code = params.get("code");
+          if (code) {
+            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+            if (error) {
+              console.warn("PKCE code exchange note:", error);
+              // Double check if getSession succeeded concurrently
+              const { data: fallback } = await supabase.auth.getSession();
+              if (fallback?.session) {
+                if (mounted) {
+                  setSession(fallback.session);
+                  setUser(fallback.session.user);
+                }
+              } else {
+                setOauthError(error.message);
+              }
+            } else if (data?.session) {
+              if (mounted) {
+                setSession(data.session);
+                setUser(data.session.user);
+              }
+            }
+            try {
+              window.history.replaceState({}, document.title, window.location.pathname);
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+
         if (mounted) {
-          setSession(existingSession);
+          setSession(existingSession ?? null);
           setUser(existingSession?.user ?? null);
           setIsLoading(false);
         }
@@ -261,14 +299,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     try {
-      const redirectTo = `${window.location.origin}/dashboard`;
+      const redirectTo = `${window.location.origin}/login`;
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo,
           queryParams: {
             access_type: "offline",
-            prompt: "consent",
+            prompt: "select_account",
           },
         },
       });
