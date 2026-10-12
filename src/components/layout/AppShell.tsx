@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Bell, History, LayoutDashboard, Settings, Target, Trophy, User } from "lucide-react";
+import { History, LayoutDashboard, Settings, Target, Trophy, User } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { calculateProfileCompleteness, useAssessmentSession } from "@/lib/assessment-session";
 import { useAuth } from "@/lib/auth-context";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 import { CoachProvider } from "@/components/coach/CoachContext";
 import { AICoachDrawer, CoachFloatingTrigger } from "@/components/coach/AICoachDrawer";
@@ -52,10 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <ThemeToggle />
-              <Button variant="ghost" size="icon" aria-label="Notifications" className="relative size-9 rounded-full">
-                <Bell className="size-4" />
-                <span className="absolute right-2 top-2 size-1.5 rounded-full bg-emerald-500" />
-              </Button>
+              <NotificationBell />
               <Button asChild variant="ghost" size="icon" aria-label="Settings" className="size-9 rounded-full">
                 <Link to="/settings">
                   <Settings className="size-4" />
