@@ -25,7 +25,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { GoogleAuthButton } from "@/components/auth/GoogleAuthButton";
-import { PhoneAuthForm } from "@/components/auth/PhoneAuthForm";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 
@@ -43,7 +42,6 @@ export const Route = createFileRoute("/login")({
 });
 
 type AuthMode = "signin" | "signup";
-type AuthMethod = "email" | "phone";
 
 function getPasswordStrength(pass: string): {
   score: number;
@@ -89,7 +87,6 @@ function LoginPage() {
 
   const justSignedUpRef = useRef(false);
   const [mode, setMode] = useState<AuthMode>("signin");
-  const [method, setMethod] = useState<AuthMethod>("email");
 
   // Form fields
   const [email, setEmail] = useState("");
@@ -419,48 +416,12 @@ function LoginPage() {
                 label={mode === "signin" ? "Continue with Google" : "Sign up with Google"}
                 disabled={isSubmitting}
               />
-
-              {/* Method Switcher between Email and Phone */}
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <Button
-                  type="button"
-                  variant={method === "email" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setMethod("email");
-                    setErrorMsg(null);
-                  }}
-                  className={`h-9 rounded-lg text-xs font-semibold ${
-                    method === "email"
-                      ? "bg-muted text-foreground hover:bg-muted"
-                      : "border-border/70 text-muted-foreground"
-                  }`}
-                >
-                  <Mail className="mr-1.5 size-3.5" /> Email
-                </Button>
-                <Button
-                  type="button"
-                  variant={method === "phone" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => {
-                    setMethod("phone");
-                    setErrorMsg(null);
-                  }}
-                  className={`h-9 rounded-lg text-xs font-semibold ${
-                    method === "phone"
-                      ? "bg-muted text-foreground hover:bg-muted"
-                      : "border-border/70 text-muted-foreground"
-                  }`}
-                >
-                  <Phone className="mr-1.5 size-3.5" /> Phone OTP
-                </Button>
-              </div>
             </div>
 
             {/* Visual Divider */}
             <div className="relative my-6 text-center text-xs after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
               <span className="relative z-10 bg-card px-2 text-muted-foreground uppercase font-mono text-[10px] tracking-wider">
-                Or continue with {method}
+                Or continue with email
               </span>
             </div>
 
@@ -479,11 +440,7 @@ function LoginPage() {
               </div>
             )}
 
-            {/* Render Phone Form or Email Form */}
-            {method === "phone" ? (
-              <PhoneAuthForm onSuccess={() => navigate({ to: "/dashboard" })} />
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
                 {mode === "signup" && (
                   <div className="space-y-1.5">
                     <Label htmlFor="fullName" className="text-xs font-semibold">
@@ -681,7 +638,6 @@ function LoginPage() {
                   )}
                 </Button>
               </form>
-            )}
 
             <div className="mt-6 border-t border-border/80 pt-4 text-center text-xs text-muted-foreground">
               {mode === "signin" ? (
