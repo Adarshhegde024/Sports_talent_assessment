@@ -5,9 +5,14 @@ import urllib.request
 import urllib.error
 from typing import Dict, Any, List, Optional, AsyncGenerator
 import httpx
+from backend.app.core.config import settings
 from backend.app.llm.prompts import SYSTEM_PROMPT, build_movement_prompt
 from backend.app.llm.response_formatter import ResponseFormatter
 from backend.app.core.logging import logger
+
+def _get_ssl_verify():
+    """Render/Linux has valid system CAs; on Windows, use False if local issuer certs missing."""
+    return os.name != "nt"
 
 class AthleticIntelligenceEngine:
     """
@@ -29,40 +34,62 @@ class AthleticIntelligenceEngine:
 
     def get_engine_status(self) -> Dict[str, Any]:
         """
-        Polls Ollama service for running state and available Qwen model tags.
+        Polls 24/7 Groq Cloud LLM and local Ollama service for running state and available models.
         """
+        groq_key = os.getenv("GROQ_API_KEY") or getattr(settings, "GROQ_API_KEY", "")
+        groq_model = os.getenv("GROQ_MODEL") or getattr(settings, "GROQ_MODEL", "qwen/qwen3.8-27b")
+        openai_key = os.getenv("OPENAI_API_KEY")
+
+        ollama_online = False
+        ollama_model = self.OLLAMA_MODEL
+        qwen_detected = False
+        available_models = []
+
         try:
             req = urllib.request.Request(self.OLLAMA_TAGS_URL, headers={"User-Agent": "SportSense-AI"})
-            with urllib.request.urlopen(req, timeout=1.0) as resp:
+            with urllib.request.urlopen(req, timeout=0.6) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode("utf-8"))
                     raw_models = data.get("models", [])
-                    models = [m.get("name", "") for m in raw_models if isinstance(m, dict) and m.get("name")]
-                    
-                    # Auto-detect best active Qwen model
-                    qwen_models = [m for m in models if "qwen" in m.lower()]
-                    selected_model = self.OLLAMA_MODEL
+                    available_models = [m.get("name", "") for m in raw_models if isinstance(m, dict) and m.get("name")]
+                    qwen_models = [m for m in available_models if "qwen" in m.lower()]
                     if qwen_models:
-                        if any(self.OLLAMA_MODEL in qm for qm in qwen_models):
-                            selected_model = self.OLLAMA_MODEL
-                        else:
-                            selected_model = qwen_models[0]
-                        self.OLLAMA_MODEL = selected_model
+                        qwen_detected = True
+                        ollama_model = self.OLLAMA_MODEL if any(self.OLLAMA_MODEL in qm for qm in qwen_models) else qwen_models[0]
+                        self.OLLAMA_MODEL = ollama_model
+                    ollama_online = True
+        except Exception:
+            pass
 
-                    return {
-                        "ollama_online": True,
-                        "active_model": selected_model,
-                        "available_models": models,
-                        "qwen_detected": len(qwen_models) > 0,
-                        "mode": "ollama_live" if len(qwen_models) > 0 else "deterministic_fallback",
-                        "message": f"Local Ollama online. Active model: {selected_model}",
-                        "endpoint": self.OLLAMA_GENERATE_URL,
-                    }
-        except Exception as e:
-            logger.debug(f"Ollama tags check failed ({e}). Fallback engine active.")
+        # 24/7 Cloud LLM via Groq (Primary for cloud deployments and 24/7 availability)
+        if groq_key or openai_key:
+            cloud_name = f"{groq_model} (Groq Cloud)" if groq_key else "gpt-4o-mini (Cloud)"
+            return {
+                "ollama_online": ollama_online,
+                "cloud_online": True,
+                "active_model": cloud_name,
+                "available_models": [groq_model] + available_models,
+                "qwen_detected": True,
+                "mode": "cloud_llm",
+                "message": f"24/7 Live Cloud Qwen Intelligence Online via Groq ({groq_model})",
+                "endpoint": "https://api.groq.com/openai/v1/chat/completions",
+            }
+
+        if ollama_online and qwen_detected:
+            return {
+                "ollama_online": True,
+                "cloud_online": False,
+                "active_model": ollama_model,
+                "available_models": available_models,
+                "qwen_detected": True,
+                "mode": "ollama_live",
+                "message": f"Local Ollama online. Active model: {ollama_model}",
+                "endpoint": self.OLLAMA_GENERATE_URL,
+            }
 
         return {
             "ollama_online": False,
+            "cloud_online": False,
             "active_model": None,
             "available_models": [],
             "qwen_detected": False,
@@ -90,19 +117,67 @@ class AthleticIntelligenceEngine:
         name = athlete_name if athlete_name and athlete_name.lower() != "athlete" else "Athlete"
 
         status_info = self.get_engine_status()
-        is_ollama = status_info["ollama_online"] and status_info.get("qwen_detected", False)
+        is_cloud = status_info.get("mode") == "cloud_llm"
+        is_ollama = status_info.get("ollama_online", False) and status_info.get("qwen_detected", False)
 
         # 1. Yield initial engine connection status
         yield {
             "type": "status",
-            "mode": "ollama_live" if is_ollama else "deterministic_fallback",
-            "active_model": status_info.get("active_model") if is_ollama else None,
-            "ollama_online": status_info["ollama_online"],
+            "mode": status_info.get("mode", "deterministic_fallback"),
+            "active_model": status_info.get("active_model"),
+            "ollama_online": status_info.get("ollama_online", False),
+            "cloud_online": status_info.get("cloud_online", False),
             "assessment_slug": slug,
             "athlete_name": name,
         }
 
-        # 2. Try streaming live from Ollama if online
+        # 2. Try streaming live from 24/7 Groq Cloud LLM if available
+        groq_key = os.getenv("GROQ_API_KEY") or getattr(settings, "GROQ_API_KEY", "")
+        if is_cloud and groq_key:
+            try:
+                prompt = build_movement_prompt(
+                    assessment_slug=slug,
+                    athlete_name=name,
+                    kinematics=kinematics,
+                    top_sport=top_sport,
+                    sport_scores=sport_scores,
+                    performance_metrics=performance_metrics,
+                )
+                headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
+                payload = {
+                    "model": getattr(settings, "GROQ_MODEL", "qwen/qwen3.8-27b"),
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.3,
+                    "max_tokens": 1024,
+                }
+                async with httpx.AsyncClient(timeout=15.0, verify=_get_ssl_verify()) as client:
+                    resp = await client.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
+                    if resp.status_code == 200:
+                        raw_json_str = resp.json()["choices"][0]["message"]["content"]
+                        validated = ResponseFormatter.parse_and_validate_json(raw_json_str)
+                        if validated:
+                            coaching_text = (
+                                f"**{validated['tier']}**\n\n"
+                                f"{validated['summary']}\n\n"
+                                f"**Takeoff & Propulsion Dynamics:**\n{validated['takeoff_mechanics']}\n\n"
+                                f"**Landing Deceleration & Alignment:**\n{validated['landing_mechanics']}\n\n"
+                                f"**Sport Biomechanical Transfer ({top_sport}):**\n{validated['sport_match_rationale']}"
+                            )
+                            words = coaching_text.split(" ")
+                            for i in range(0, len(words), 3):
+                                chunk = " ".join(words[i : i + 3]) + " "
+                                yield {"type": "token", "content": chunk}
+                                await asyncio.sleep(0.01)
+                            yield {"type": "complete", "report": validated}
+                            return
+            except Exception as exc:
+                logger.warning(f"Groq coaching report error ({exc}). Falling back.")
+
+        # 3. Try streaming live from Local Ollama if online
         if is_ollama:
             try:
                 prompt = build_movement_prompt(
@@ -156,7 +231,7 @@ class AthleticIntelligenceEngine:
                     "message": "Local LLM stream completed or paused. Presenting calibrated biomechanics report.",
                 }
 
-        # 3. Deterministic Olympic Biomechanics Engine Streaming Fallback
+        # 4. Deterministic Olympic Biomechanics Engine Streaming Fallback
         deterministic_report = self._generate_biomechanic_synthesis(
             slug=slug,
             name=name,
@@ -194,8 +269,8 @@ class AthleticIntelligenceEngine:
         slug = (assessment_slug or "vertical-jump").lower()
         name = athlete_name if athlete_name and athlete_name.lower() != "athlete" else "Athlete"
 
-        # 1. Attempt Local Qwen LLM Generation if Ollama is active
-        llm_result = self._try_ollama_generation(
+        # 1. Attempt Cloud / Local Qwen LLM Generation
+        llm_result = self._try_cloud_or_ollama_generation(
             assessment_slug=slug,
             athlete_name=name,
             kinematics=kinematics,
@@ -216,7 +291,7 @@ class AthleticIntelligenceEngine:
             performance_metrics=performance_metrics,
         )
 
-    def _try_ollama_generation(
+    def _try_cloud_or_ollama_generation(
         self,
         assessment_slug: str,
         athlete_name: str,
@@ -233,6 +308,32 @@ class AthleticIntelligenceEngine:
             sport_scores=sport_scores,
             performance_metrics=performance_metrics,
         )
+
+        # Try Groq Cloud first
+        groq_key = os.getenv("GROQ_API_KEY") or getattr(settings, "GROQ_API_KEY", "")
+        if groq_key:
+            try:
+                headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
+                payload = {
+                    "model": getattr(settings, "GROQ_MODEL", "qwen/qwen3.8-27b"),
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "temperature": 0.3,
+                    "max_tokens": 1024,
+                }
+                with httpx.Client(timeout=8.0, verify=_get_ssl_verify()) as client:
+                    resp = client.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
+                    if resp.status_code == 200:
+                        raw_text = resp.json()["choices"][0]["message"]["content"]
+                        validated = ResponseFormatter.parse_and_validate_json(raw_text)
+                        if validated:
+                            logger.info("Successfully generated report via 24/7 Groq Cloud Qwen LLM")
+                            return validated
+            except Exception as e:
+                logger.debug(f"Groq cloud generation failed ({e})")
 
         payload = {
             "model": self.OLLAMA_MODEL,
@@ -595,7 +696,13 @@ class AthleticIntelligenceEngine:
             f"2. When the athlete asks how to improve, give specific, actionable training drills with sets, repetitions, and kinetic focus (e.g., rate of force development, eccentric deceleration, triple extension, or joint alignment).\n"
             f"3. Explain joint angles and injury resilience (e.g., landing shock absorption, knee valgus prevention, core stability).\n"
             f"4. Format your advice with clean markdown, bullet points, and bold headers so it is easy to read on mobile and web screens.\n"
-            f"5. Answer in a conversational, friendly, professional tone as their personal Olympic mentor."
+            f"5. Answer in a conversational, friendly, professional tone as their personal Olympic mentor.\n"
+            f"6. WORKOUT ROUTINE GENERATION: When the athlete asks for a workout plan or routine (e.g., 7-day or 14-day training schedule):\n"
+            f"   - Structure each day clearly with markdown headers (e.g., '### Day 1: [Focus Title]', '### Day 2: ...').\n"
+            f"   - For every training day, provide: Movement Primer, Main Kinetic Drills (with exact Sets × Reps), and Biomechanical Cues.\n"
+            f"   - Schedule strategic active recovery / mobility days (e.g., Day 4 and Day 7).\n"
+            f"   - Conclude with a brief 'Progression Note' on how to measure improvement on their next assessment re-test.\n"
+            f"7. BIOMECHANICAL BENCHMARKS: When asked about standards or how they compare to elite athletes, compare their metrics against Beginner, Trained, State/College, and Olympic/Elite standards. Quantify the exact gap and provide the specific mechanical cues to bridge it."
         )
 
     def _generate_deterministic_chat_reply(
@@ -964,14 +1071,14 @@ class AthleticIntelligenceEngine:
         for m in messages:
             ollama_messages.append({"role": m.get("role", "user"), "content": m.get("content", "")})
 
-        # 1. Cloud LLM support (Groq / OpenAI) if key is configured in environment
-        groq_key = os.getenv("GROQ_API_KEY")
+        # 1. Cloud LLM support (Groq / OpenAI)
+        groq_key = os.getenv("GROQ_API_KEY") or getattr(settings, "GROQ_API_KEY", "")
         openai_key = os.getenv("OPENAI_API_KEY")
 
         if groq_key or openai_key:
             cloud_url = "https://api.groq.com/openai/v1/chat/completions" if groq_key else "https://api.openai.com/v1/chat/completions"
             cloud_key = groq_key or openai_key
-            cloud_model = "llama-3.3-70b-versatile" if groq_key else "gpt-4o-mini"
+            cloud_model = getattr(settings, "GROQ_MODEL", "qwen/qwen3.8-27b") if groq_key else "gpt-4o-mini"
             try:
                 yield {
                     "type": "status",
@@ -984,9 +1091,9 @@ class AthleticIntelligenceEngine:
                     "messages": ollama_messages,
                     "stream": True,
                     "temperature": 0.6,
-                    "max_tokens": 600,
+                    "max_tokens": 1500,
                 }
-                async with httpx.AsyncClient(timeout=25.0) as client:
+                async with httpx.AsyncClient(timeout=30.0, verify=_get_ssl_verify()) as client:
                     async with client.stream("POST", cloud_url, json=payload, headers=headers) as response:
                         if response.status_code == 200:
                             async for raw_line in response.aiter_lines():
@@ -1005,6 +1112,8 @@ class AthleticIntelligenceEngine:
                                 except Exception:
                                     continue
                             return
+                        else:
+                            logger.warning(f"Cloud LLM stream returned HTTP {response.status_code}")
             except Exception as e:
                 logger.warning(f"Cloud LLM stream error ({e}). Falling back.")
 

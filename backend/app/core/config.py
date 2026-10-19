@@ -1,7 +1,11 @@
 import os
 from typing import List
+from pathlib import Path
 from dotenv import load_dotenv
 
+_base_dir = Path(__file__).resolve().parents[2]
+load_dotenv(_base_dir / ".env")
+load_dotenv(_base_dir.parent / ".env")
 load_dotenv()
 
 class Settings:
@@ -38,5 +42,9 @@ class Settings:
     
     # AI/ML Engine
     GRAVITY: float = float(os.getenv("GRAVITY", "9.80665"))
+    
+    # 24/7 Groq Cloud LLM Configuration (Coach Qwen)
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
 
 settings = Settings()

@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SportSense AI — Major Project Presentation & Viva Guide</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f172a;
+      color: #1e293b;
+      padding: 24px 16px;
+      line-height: 1.45;
+    }
+    
+    .toolbar {
+      max-width: 900px;
+      margin: 0 auto 16px auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #1e293b;
+      padding: 12px 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .toolbar h1 {
+      color: #34d399;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    
+    .btn-print {
+      background: #059669;
+      color: white;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+    
+    .btn-print:hover {
+      background: #10b981;
+    }
+    
+    .page-container {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    
+    .page {
+      background: white;
+      width: 100%;
+      min-height: 1100px;
+      padding: 40px 48px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      position: relative;
+    }
+    
+    .page-header {
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .page-header .brand {
+      font-weight: 800;
+      font-size: 12px;
+      color: #065f46;
+      letter-spacing: 0.5px;
+    }
+    
+    .page-header .meta {
+      font-size: 11px;
+      color: #64748b;
+    }
+    
+    .page-footer {
+      position: absolute;
+      bottom: 24px;
+      left: 48px;
+      right: 48px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #64748b;
+    }
+    
+    h1.title {
+      font-size: 20px;
+      font-weight: 800;
+      color: #065f46;
+      margin-bottom: 4px;
+    }
+    
+    h2.subtitle {
+      font-size: 12px;
+      font-weight: 500;
+      color: #475569;
+      margin-bottom: 14px;
+    }
+    
+    h3.section-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #0f172a;
+      border-left: 4px solid #059669;
+      padding-left: 8px;
+      margin: 14px 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    
+    p, li {
+      font-size: 11.5px;
+      color: #334155;
+      line-height: 1.5;
+    }
+    
+    ul {
+      margin-left: 18px;
+      margin-bottom: 8px;
+    }
+    
+    li {
+      margin-bottom: 3px;
+    }
+    
+    .callout {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    
+    .callout-blue {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+    }
+    
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+    
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      font-size: 11px;
+    }
+    
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 7px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    
+    th {
+      background: #0f172a;
+      color: white;
+      font-weight: 700;
+      font-size: 11px;
+    }
+    
+    tr:nth-child(even) {
+      background: #f8fafc;
+    }
+    
+    .script-box {
+      font-style: italic;
+      color: #047857;
+      background: #ecfdf5;
+      border-left: 3px solid #10b981;
+      padding: 8px 12px;
+      margin: 6px 0;
+      font-size: 11px;
+    }
+    
+    .qa-box {
+      background: #f8fafc;
+      border-left: 3px solid #0284c7;
+      padding: 6px 12px;
+      margin: 4px 0;
+      font-size: 10.5px;
+    }
+    
+    .qa-box strong {
+      color: #0369a1;
+    }
+
+    .diagram-container {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 14px;
+      margin: 12px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      line-height: 1.6;
+    }
+    
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      .toolbar {
+        display: none;
+      }
+      .page-container {
+        gap: 0;
+      }
+      .page {
+        box-shadow: none;
+        border-radius: 0;
+        page-break-after: always;
+        min-height: auto;
+        height: 100vh;
+        padding: 32px 36px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <h1>SportSense AI — Major Project Presentation & Viva Guide</h1>
+    <button class="btn-print" onclick="window.print()">
+      🖨️ Print / Save as PDF
+    </button>
+  </div>
+
+  <div class="page-container">
+    
+    <!-- PAGE 1 -->
+    <div class="page">
+      <div class="page-header">
+        <span class="brand">SPORTSENSE AI</span>
+        <span class="meta">Major Project Presentation & Viva Guide | 2025–2026</span>
+      </div>
+
+      <h1 class="title">SportSense AI — Biomechanical Movement & Sports Talent Assessment</h1>
+      <h2 class="subtitle">An Accessible Computer Vision, Biomechanical Kinematics & Multi-Model Machine Learning Platform</h2>
+
+      <div class="callout">
+        <strong>2-Minute Elevator Pitch (For College Presentation Opening):</strong><br>
+        <em>"Respected evaluators, modern sports academies rely on expensive force plates and 3D motion-capture laboratories costing lakhs of rupees, making scientific talent assessment inaccessible to 95% of grassroots and school athletes. SportSense AI solves this problem by using standard smartphone and webcam video to capture 33 human anatomical landmarks in real-time with MediaPipe and OpenCV. By extracting kinematic physics parameters across five standardized assessments, classifying athletic suitability across six sports with machine learning, and delivering natural-language coaching via an LLM, our system provides objective, democratized athletic talent identification without any specialized hardware."</em>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <strong style="color: #065f46; font-size: 12px;">1. Problem Statement</strong>
+          <ul>
+            <li><strong>High Barrier to Entry:</strong> Commercial biomechanics rigs (Vicon, Qualisys, Bertec force plates) cost over $20,000.</li>
+            <li><strong>Subjective Scouting:</strong> Physical education teachers rely on manual stopwatches and eyeball observations, introducing human bias.</li>
+            <li><strong>Unidentified Talent:</strong> Grassroots and school athletes lack access to scientific sport recommendations matching their physical strengths.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <strong style="color: #065f46; font-size: 12px;">2. Proposed Solution</strong>
+          <ul>
+            <li><strong>Commodity Hardware:</strong> Works on standard 30 FPS webcams and smartphone cameras with zero external sensors.</li>
+            <li><strong>Deterministic Kinematics:</strong> Measures true physics metrics (flight time, joint flexion angles, balance sway, agility transition velocity).</li>
+            <li><strong>Multi-Model AI Guidance:</strong> Combines scikit-learn classification for multi-sport fit scoring with local Ollama Qwen2.5:3b for athlete coaching.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 class="section-title">3. The 5 Supported Biomechanical Assessment Protocols</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Assessment Protocol</th>
+            <th>Physical Trait Measured</th>
+            <th>Computer Vision Method</th>
+            <th>Primary Metric & Unit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Vertical Jump</strong></td>
+            <td>Explosive Power</td>
+            <td>Hip center-of-mass trajectory; takeoff & landing detection</td>
+            <td>Flight Time (s) & Jump Height (cm)</td>
+          </tr>
+          <tr>
+            <td><strong>Squat Assessment</strong></td>
+            <td>Strength & Mobility</td>
+            <td>Knee flexion angle (Hip-Knee-Ankle); depth vs hip plane</td>
+            <td>Min Knee Flexion (deg) & Depth Score</td>
+          </tr>
+          <tr>
+            <td><strong>Single-Leg Balance</strong></td>
+            <td>Stability & Balance</td>
+            <td>Center-of-mass sway variance over 15–30s hold period</td>
+            <td>Stability Index (%) & Trunk Sway</td>
+          </tr>
+          <tr>
+            <td><strong>Push-Up</strong></td>
+            <td>Upper-Body Endurance</td>
+            <td>Elbow angle state-machine tracking (UP → DOWN → UP)</td>
+            <td>Completed Repetitions & Form Integrity</td>
+          </tr>
+          <tr>
+            <td><strong>Side-to-Side Agility</strong></td>
+            <td>Agility & Coordination</td>
+            <td>Lateral hip displacement past left/right boundary thresholds</td>
+            <td>Direction Switches & Transition Time (s)</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="grid-2" style="margin-top: 8px;">
+        <div class="card">
+          <strong style="color: #065f46; font-size: 11px;">Main Objectives:</strong>
+          <p style="font-size: 10.5px; margin-top: 4px;">Democratize athletic screening using commodity webcams; measure objective physical kinematics in &lt;3s; classify multi-sport fit across 6 sports; synthesize personalized AI coaching drills.</p>
+        </div>
+        <div class="card">
+          <strong style="color: #065f46; font-size: 11px;">Intended Users:</strong>
+          <p style="font-size: 10.5px; margin-top: 4px;">School athletes (development tracking); Physical Education teachers & coaches (squad screening); Sports scouts (metric-driven identification); Parents (early sport discovery).</p>
+        </div>
+      </div>
+
+      <div class="page-footer">
+        <span>SportSense AI — Final-Year Major Project Guide</span>
+        <span>Page 1 of 4</span>
+      </div>
+    </div>
+
+    <!-- PAGE 2 -->
+    <div class="page">
+      <div class="page-header">
+        <span class="brand">SPORTSENSE AI</span>
+        <span class="meta">Major Project Presentation & Viva Guide | 2025–2026</span>
+      </div>
+
+      <h1 class="title">2. System Architecture & End-to-End Technical Working</h1>
+      <h2 class="subtitle">Complete Processing Pipeline from Video Ingestion to Machine Learning & Natural Language Coaching</h2>
+
+      <div style="margin: 10px 0; text-align: center;">
+        <img src="system_architecture_diagram.png" alt="SportSense AI System Architecture Diagram" style="width: 100%; border-radius: 8px; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+      </div>
+
+      <h3 class="section-title">Technical Components (Explained in Plain English)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Technology Used</th>
+            <th>Exact Role in the Application</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Frontend UI</strong></td>
+            <td>React 18, Vite, TanStack Router, Tailwind</td>
+            <td>Responsive user interface, manages camera stream via <code>getUserMedia</code>, draws live skeleton canvas overlay, and presents dynamic Radar charts.</td>
+          </tr>
+          <tr>
+            <td><strong>Backend API</strong></td>
+            <td>FastAPI, Uvicorn, Python 3.11+</td>
+            <td>Asynchronous REST service. Accepts multipart video uploads, handles temporary streaming buffers, orchestrates vision pipelines, and exposes modular API endpoints.</td>
+          </tr>
+          <tr>
+            <td><strong>Computer Vision</strong></td>
+            <td>OpenCV (<code>cv2</code>) &amp; MediaPipe Pose</td>
+            <td>Extracts 33 anatomical landmarks (x, y, z, visibility) per frame at 30 FPS. Calculates joint angles and applies optical flow fallback if keypoints are obscured.</td>
+          </tr>
+          <tr>
+            <td><strong>Database &amp; Auth</strong></td>
+            <td>Supabase Cloud (PostgreSQL 15)</td>
+            <td>Stores profiles, runs, attempts, and results across 8 relational tables. Implements Row-Level Security (RLS) and handles Google OAuth and Email authentication.</td>
+          </tr>
+          <tr>
+            <td><strong>Machine Learning</strong></td>
+            <td>Scikit-Learn (LogisticRegression, GroupKFold)</td>
+            <td>Evaluated 6 classifiers (LR, Random Forest, SVM, KNN, Naive Bayes, XGBoost). Best model maps 5 kinematic traits to multi-sport probability distributions.</td>
+          </tr>
+          <tr>
+            <td><strong>AI Coaching LLM</strong></td>
+            <td>Ollama (Qwen2.5:3b) + Biomechanics Fallback</td>
+            <td>Generates structured coaching summaries, athletic strengths, and specific training drills. Automatically falls back to calibrated biomechanical rules if offline.</td>
+          </tr>
+          <tr>
+            <td><strong>Deployment</strong></td>
+            <td>Vercel (Frontend) &amp; Render (Backend)</td>
+            <td>Frontend served at global edge with reverse proxy rewrite (<code>/api/*</code>). Backend containerized on Linux cloud with OpenCV libraries and CORS integration.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout callout-blue">
+        <strong>CRITICAL VIVA DISTINCTION — CV vs. ML vs. LLM:</strong><br>
+        • <strong>Computer Vision (OpenCV + MediaPipe):</strong> <em>Observes & Measures.</em> Detects physical keypoints and derives raw kinematic metrics (e.g., flight time = 0.58s, knee angle = 88°).<br>
+        • <strong>Machine Learning (Scikit-Learn Classifier):</strong> <em>Pattern Recognizes & Classifies.</em> Maps the 5 normalized physical traits (Explosive Power, Strength, Balance, Agility, Coordination) to the top matching sport among Basketball, Volleyball, Football, Tennis, Badminton, and Cricket.<br>
+        • <strong>Large Language Model (Ollama / Qwen2.5):</strong> <em>Explains & Communicates.</em> Synthesizes measurements into plain-English coaching advice. <strong>The LLM never directly measures movement!</strong>
+      </div>
+
+      <div class="card">
+        <strong style="color: #065f46; font-size: 11px;">Vertical Jump End-to-End Calculation Example:</strong>
+        <p style="font-size: 10px; margin-top: 3px;">
+          1. Athlete uploads jump video ➔ 2. OpenCV reads frames at 30 FPS ➔ 3. MediaPipe tracks Hips (#23, #24) Center of Mass ➔ 4. Flight time detected: <code>t = 0.58s</code> between takeoff and landing ➔ 5. Physics formula: <code>h = 1/8 * 9.80665 * (0.58)² = 41.2 cm</code> ➔ 6. Explosive Power score: <code>88/100</code> ➔ 7. ML Classifier predicts Top Sport: <code>Basketball (88%)</code> ➔ 8. Qwen LLM outputs personalized coaching drill.
+        </p>
+      </div>
+
+      <div class="page-footer">
+        <span>SportSense AI — Final-Year Major Project Guide</span>
+        <span>Page 2 of 4</span>
+      </div>
+    </div>
+
+    <!-- PAGE 3 -->
+    <div class="page">
+      <div class="page-header">
+        <span class="brand">SPORTSENSE AI</span>
+        <span class="meta">Major Project Presentation & Viva Guide | 2025–2026</span>
+      </div>
+
+      <h1 class="title">3. Team Presentation Division & Viva Responsibilities</h1>
+      <h2 class="subtitle">Four Balanced, Technically Distinct Modules Designed for Clear Project Defense</h2>
+
+      <!-- MEMBER 1 -->
+      <div class="card" style="margin-bottom: 10px;">
+        <strong style="color: #065f46; font-size: 12px;">MEMBER 1: Frontend Engineering, UI/UX, Camera Capture & Authentication</strong>
+        <p style="font-size: 10px; color: #64748b; margin-bottom: 4px;"><strong>Technologies:</strong> React 18, TypeScript, TanStack Router, Tailwind CSS, Lucide Icons, MediaDevices Web API, Sonner.</p>
+        <div class="script-box">
+          "I was responsible for the client-side user experience, authentication workflows, and real-time camera interfaces. Our frontend is structured using TanStack Router for type-safe routing. We implemented Google OAuth with auto-profile sync and Email/Password authentication. When an athlete begins an assessment, our interface uses HTML5 MediaDevices to stream 30 FPS video, displays live positioning guides and countdown overlays, captures video buffers, and posts them to our backend while displaying interactive Radar charts and talent breakdown reports."
+        </div>
+        <div class="qa-box"><strong>Q: Why choose TanStack Router over standard React Router?</strong><br>A: TanStack Router provides 100% type-safe route parameters, automatic search-param validation, and built-in code-splitting without runtime navigation crashes.</div>
+        <div class="qa-box"><strong>Q: How does video recording work directly inside the browser?</strong><br>A: We access the camera using <code>navigator.mediaDevices.getUserMedia</code>, render the stream onto a <code>&lt;video&gt;</code> element, and capture compressed video blobs using the <code>MediaRecorder</code> API before transmitting to the FastAPI server.</div>
+      </div>
+
+      <!-- MEMBER 2 -->
+      <div class="card" style="margin-bottom: 10px;">
+        <strong style="color: #065f46; font-size: 12px;">MEMBER 2: Backend Architecture, PostgreSQL Database & Cloud Deployment</strong>
+        <p style="font-size: 10px; color: #64748b; margin-bottom: 4px;"><strong>Technologies:</strong> FastAPI, Python 3.11, Uvicorn, Supabase (PostgreSQL 15), Row-Level Security (RLS), Docker, Render, Vercel.</p>
+        <div class="script-box">
+          "I managed the backend infrastructure, database design, and cloud deployment pipelines. I built a modular asynchronous REST backend using FastAPI and Pydantic schemas. I designed our Supabase PostgreSQL schema spanning 8 relational tables—including profiles, assessments, attempts, and talent reports—protected by Row-Level Security policies. To deploy, I containerized the backend on Render Linux and configured Vercel edge reverse proxying to route <code>/api/*</code> requests seamlessly without CORS issues."
+        </div>
+        <div class="qa-box"><strong>Q: Why choose FastAPI instead of traditional Flask or Django?</strong><br>A: FastAPI is natively asynchronous (ASGI), allowing high-concurrency video uploads without thread blocking. It also provides automatic OpenAPI Swagger documentation and automatic Pydantic request validation.</div>
+        <div class="qa-box"><strong>Q: How is database security enforced between different athletes?</strong><br>A: We use Supabase PostgreSQL Row-Level Security (RLS). Database policies check the JWT <code>auth.uid()</code>, ensuring athletes can only query and mutate their own assessment attempts and medical profiles.</div>
+      </div>
+
+      <!-- MEMBER 3 -->
+      <div class="card" style="margin-bottom: 10px;">
+        <strong style="color: #065f46; font-size: 12px;">MEMBER 3: Computer Vision, Pose Tracking & Biomechanical Feature Extraction</strong>
+        <p style="font-size: 10px; color: #64748b; margin-bottom: 4px;"><strong>Technologies:</strong> OpenCV (cv2), MediaPipe Pose (33 Landmarks), NumPy, Trigonometric Kinematics, Moving Average Smoothing.</p>
+        <div class="script-box">
+          "My focus was the computer vision pipeline that transforms video frames into biomechanical metrics. We integrate MediaPipe Pose to track 33 3D anatomical keypoints at 30+ FPS. For each of the five assessments, I implemented specialized kinematic extraction: flight-time physics for Vertical Jump, trigonometric knee flexion angles for Squat depth, center-of-mass sway variance for Single-Leg Balance, elbow state machines for Push-Up counting, and lateral bounding threshold checks for Agility."
+        </div>
+        <div class="qa-box"><strong>Q: Why use MediaPipe Pose instead of heavy models like YOLOv8-pose or OpenPose?</strong><br>A: MediaPipe Pose is optimized for lightweight CPU execution, running at 30+ FPS in real-time with low latency, whereas OpenPose and YOLO require dedicated GPUs that are inaccessible for commodity deployments.</div>
+        <div class="qa-box"><strong>Q: How do you calculate jump height without knowing camera distance?</strong><br>A: We use flight-time projectile physics: <code>h = (1/8) * g * (t_flight)²</code>. By identifying the exact takeoff frame and landing frame, flight time is independent of camera distance, focal length, or pixel perspective.</div>
+      </div>
+
+      <!-- MEMBER 4 -->
+      <div class="card">
+        <strong style="color: #065f46; font-size: 12px;">MEMBER 4: Machine Learning Classification, Local LLM Integration & Talent Synthesis</strong>
+        <p style="font-size: 10px; color: #64748b; margin-bottom: 4px;"><strong>Technologies:</strong> Scikit-Learn, Joblib, GroupKFold Validation, Ollama, Qwen2.5:3b LLM, Multi-Sport Scoring Engine.</p>
+        <div class="script-box">
+          "I was responsible for training our multi-sport classification models, integrating our local LLM coaching engine, and synthesizing the final Talent Report. I benchmarked six machine learning models using subject-independent 5-fold GroupKFold validation to prevent data leakage. Logistic Regression achieved the highest balanced F1-score of 53.12% across 6 sports. I integrated local Ollama running Qwen2.5:3b to stream personalized drills, with an automatic deterministic Olympic fallback engine if offline."
+        </div>
+        <div class="qa-box"><strong>Q: Why did Logistic Regression beat complex models like Random Forest and XGBoost?</strong><br>A: With five normalized continuous athletic traits, complex tree ensembles overfit on small sample sizes. Logistic Regression provided superior generalization, zero data leakage, and well-calibrated class probabilities.</div>
+        <div class="qa-box"><strong>Q: What happens if Ollama or the local LLM server is not running during a demo?</strong><br>A: The system features an automated deterministic Olympic Biomechanics fallback engine that parses the measured kinematics and generates structured coaching observations with zero latency, guaranteeing 100% uptime.</div>
+      </div>
+
+      <div class="page-footer">
+        <span>SportSense AI — Final-Year Major Project Guide</span>
+        <span>Page 3 of 4</span>
+      </div>
+    </div>
+
+    <!-- PAGE 4 -->
+    <div class="page">
+      <div class="page-header">
+        <span class="brand">SPORTSENSE AI</span>
+        <span class="meta">Major Project Presentation & Viva Guide | 2025–2026</span>
+      </div>
+
+      <h1 class="title">4. Live Demonstration Flow, Limitations & Master Viva Q&A</h1>
+      <h2 class="subtitle">Step-by-Step Live Demo Protocol, Real-World Boundaries & Comprehensive Examiner Questions</h2>
+
+      <div class="callout" style="margin-top: 4px;">
+        <strong>Step-by-Step Live Demonstration Protocol (Follow this during Project Viva):</strong><br>
+        <strong>1. Authentication:</strong> Open <code>https://sports-talent-assessment-green.vercel.app/login</code>. Show Google OAuth sign-in or Email/Password registration.<br>
+        <strong>2. Athlete Dashboard:</strong> Point out completed assessment metrics, athlete anthropometrics (height, age), and recommended next session.<br>
+        <strong>3. Launch Assessment:</strong> Open <em>Vertical Jump</em> protocol. Show camera positioning instructions and distance calibration guidelines.<br>
+        <strong>4. Video Capture:</strong> Select webcam recording or upload test clip. Show the 3-second countdown and execution buffer.<br>
+        <strong>5. Processing & Kinematics:</strong> Highlight backend video analysis completion in &lt;3s, extracting flight time (e.g. 0.58s) and jump height (41.2 cm).<br>
+        <strong>6. Machine Learning Sport Fit:</strong> Display radar chart and ML sport probability ranks (Basketball #1, Volleyball #2).<br>
+        <strong>7. AI Coaching Guidance:</strong> Show structured feedback generated by Ollama/Qwen (Kinematic summary, Strengths, Corrective drill).<br>
+        <strong>8. Talent Report:</strong> Navigate to <code>/talent-report</code> to demonstrate the holistic 5-trait athletic profile report.
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <strong style="color: #065f46; font-size: 11px;">Project Strengths:</strong>
+          <ul>
+            <li><strong>Zero Hardware Cost:</strong> Replaces multi-lakh lab rigs with standard smartphone cameras.</li>
+            <li><strong>True Biomechanical Physics:</strong> Jump equations based on gravitational acceleration (g = 9.81 m/s²).</li>
+            <li><strong>Zero Data Leakage:</strong> ML trained with 5-Fold GroupKFold cross-validation.</li>
+            <li><strong>Resilient Fallback:</strong> Guaranteed uptime even when local LLM server is unavailable.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <strong style="color: #065f46; font-size: 11px;">Limitations & Future Scope:</strong>
+          <ul>
+            <li><strong>Frame Rate Sensitivity:</strong> 30 FPS video yields a ±16.6ms temporal granularity (approx ±1.5 cm jump error). 60 FPS mobile capture recommended.</li>
+            <li><strong>Single 2D View:</strong> Extreme camera tilt or loose clothing can occlude joint landmarks. Future: Multi-view 3D triangulation.</li>
+            <li><strong>Edge Inference:</strong> Future version will port MediaPipe & ONNX ML directly to WebAssembly for zero-server mobile processing.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3 class="section-title">Top Master Viva Questions & Grounded Technical Answers</h3>
+      <div class="qa-box">
+        <strong>Q: Why does the system calculate Vertical Jump from flight time rather than pixel displacement?</strong><br>
+        A: Pixel displacement is distorted by camera-to-athlete distance, lens focal length, and optical distortion. In contrast, gravitational acceleration (9.81 m/s²) is constant on Earth. By detecting flight duration t, height h = (1/8)*g*t² is mathematically exact regardless of zoom or distance.
+      </div>
+      <div class="qa-box">
+        <strong>Q: What is the exact role of OpenCV vs. MediaPipe?</strong><br>
+        A: OpenCV handles low-level computer vision: reading video containers, frame decoding, color-space conversions (BGR to RGB), and optical flow motion fallbacks. MediaPipe Pose runs the deep neural network that detects the 33 anatomical 3D coordinates from those image frames.
+      </div>
+      <div class="qa-box">
+        <strong>Q: What database architecture was chosen and why?</strong><br>
+        A: Supabase PostgreSQL was chosen over NoSQL because biomechanical sessions are deeply relational (Users → Profiles → Assessments → Runs → Attempts → Results). PostgreSQL enforces foreign key cascades, JSONB flexibility for raw keypoints, and Row-Level Security.
+      </div>
+      <div class="qa-box">
+        <strong>Q: Why did you benchmark 6 ML models instead of just using a Neural Network?</strong><br>
+        A: Tabular kinematic data with 5 continuous features does not justify deep neural networks, which easily overfit small clinical datasets. By benchmarking Logistic Regression, Random Forest, SVM, KNN, Naive Bayes, and XGBoost under 5-Fold GroupKFold, we empirically proved Logistic Regression provides the highest generalization F1-score (53.12%).
+      </div>
+      <div class="qa-box">
+        <strong>Q: Can the Large Language Model (Qwen2.5) hallucinate false measurements?</strong><br>
+        A: No. The LLM is strictly constrained via prompt engineering to receive already-calculated kinematics (jump height, angles, scores) as static input context. It only translates pre-computed numerical facts into natural-language coaching tips; it never computes numerical values itself.
+      </div>
+
+      <div class="page-footer">
+        <span>SportSense AI — Final-Year Major Project Guide</span>
+        <span>Page 4 of 4</span>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>
