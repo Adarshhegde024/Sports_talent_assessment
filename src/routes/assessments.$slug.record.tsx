@@ -63,9 +63,10 @@ type PermissionState = "idle" | "requesting" | "granted" | "denied" | "unsupport
 type CaptureMode = "camera" | "upload";
 
 function RecordPage() {
-  const { slug } = useParams({ from: "/assessments/$slug/record" });
+  const routeParams = useParams({ strict: false }) as { slug?: string };
+  const slug = routeParams?.slug || "vertical-jump";
   const navigate = useNavigate();
-  const definition = ASSESSMENTS.find((a) => a.slug === slug) ?? ASSESSMENTS[0]!;
+  const definition = ASSESSMENTS.find((a) => a.slug === slug || a.id === slug) ?? ASSESSMENTS[0]!;
   const totalAttempts = definition.attempts;
 
   const {
@@ -97,7 +98,10 @@ function RecordPage() {
   const [malpracticeReason, setMalpracticeReason] = useState<string>("");
   const [isSirenMuted, setIsSirenMuted] = useState(false);
 
-  const sirenRef = useRef<MalpracticeSiren>(new MalpracticeSiren());
+  const sirenRef = useRef<MalpracticeSiren | null>(null);
+  if (!sirenRef.current && typeof window !== "undefined") {
+    sirenRef.current = new MalpracticeSiren();
+  }
   const isMalpracticeActiveRef = useRef(false);
   const consecutiveMismatchRef = useRef(0);
   const consecutiveMatchRef = useRef(0);
@@ -105,7 +109,7 @@ function RecordPage() {
   // Stop siren on component unmount
   useEffect(() => {
     return () => {
-      sirenRef.current.stop();
+      sirenRef.current?.stop();
     };
   }, []);
 
@@ -113,7 +117,7 @@ function RecordPage() {
   const toggleSirenMute = useCallback(() => {
     setIsSirenMuted((prev) => {
       const next = !prev;
-      sirenRef.current.setMute(next);
+      sirenRef.current?.setMute(next);
       return next;
     });
   }, []);
@@ -151,7 +155,7 @@ function RecordPage() {
             setIsMalpracticeActive(true);
             setMalpracticeCountdown(30);
             setMalpracticeReason(result.reason || "Anatomical bone proportions do not match the verified athlete.");
-            sirenRef.current.start();
+            sirenRef.current?.start();
 
             // If actively recording, halt attempt
             if (recorderRef.current && recorderRef.current.state === "recording") {
@@ -168,7 +172,7 @@ function RecordPage() {
           if (isMalpracticeActiveRef.current) {
             isMalpracticeActiveRef.current = false;
             setIsMalpracticeActive(false);
-            sirenRef.current.stop();
+            sirenRef.current?.stop();
             setMalpracticeCountdown(30);
             toast.success("Original athlete recognized! Assessment unlocked.", { duration: 3000 });
           }
@@ -187,7 +191,7 @@ function RecordPage() {
         if (prev <= 1) {
           clearInterval(timer);
           // Auto-abort!
-          sirenRef.current.stop();
+          sirenRef.current?.stop();
           stopStream();
           resetAttempts();
           toast.error(
@@ -511,7 +515,7 @@ function RecordPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          sirenRef.current.stop();
+                          sirenRef.current?.stop();
                           stopStream();
                           resetAttempts();
                           navigate({ to: "/dashboard" });
@@ -842,7 +846,7 @@ function RecordPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          sirenRef.current.stop();
+                          sirenRef.current?.stop();
                           stopStream();
                           resetAttempts();
                           navigate({ to: "/dashboard" });

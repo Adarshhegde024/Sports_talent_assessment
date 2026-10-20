@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAssessment } from "@/lib/api";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { DISCLAIMER } from "@/data/mock";
+import { ASSESSMENTS, DISCLAIMER } from "@/data/mock";
 import { useAssessmentSession } from "@/lib/assessment-session";
 
 export const Route = createFileRoute("/assessments/$slug/")({
@@ -34,29 +34,37 @@ export const Route = createFileRoute("/assessments/$slug/")({
 const setupIcons = [Smartphone, Ruler, Sun];
 
 function AssessmentDetail() {
-  const { slug } = useParams({ from: "/assessments/$slug/" });
+  const routeParams = useParams({ strict: false }) as { slug?: string };
+  const slug = routeParams?.slug || "vertical-jump";
   const { biometricBaseline } = useAssessmentSession();
+  const fallback = ASSESSMENTS.find((a) => a.slug === slug || a.id === slug) || ASSESSMENTS[0]!;
+
   const { data, isLoading } = useQuery({
     queryKey: ["assessment", slug],
     queryFn: () => getAssessment(slug),
+    initialData: fallback,
   });
+
+  const assessment = data || fallback;
+  const setupItems = assessment.setup && assessment.setup.length > 0 ? assessment.setup : fallback.setup;
+  const protocolItems = assessment.protocol && assessment.protocol.length > 0 ? assessment.protocol : fallback.protocol;
 
   return (
     <AppShell>
       <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8">
-        {isLoading || !data ? (
+        {isLoading && !assessment ? (
           <Skeleton className="h-96 rounded-2xl" />
         ) : (
           <>
             <p className="label-meta text-muted-foreground">Step 01 / Instructions</p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{data.name}</h1>
-            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{data.objective}</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{assessment.name}</h1>
+            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{assessment.objective}</p>
 
             <div className="mt-6 flex flex-wrap gap-3 text-xs">
-              <Chip label="Duration" value={`${data.durationMinutes} min`} />
-              <Chip label="Attempts" value={String(data.attempts)} />
-              <Chip label="Level" value={data.difficulty} />
-              <Chip label="Measures" value={data.metricLabel} />
+              <Chip label="Duration" value={`${assessment.durationMinutes} min`} />
+              <Chip label="Attempts" value={String(assessment.attempts)} />
+              <Chip label="Level" value={assessment.difficulty} />
+              <Chip label="Measures" value={assessment.metricLabel} />
             </div>
 
             {/* Identity Proctoring Status Banner */}
@@ -96,14 +104,14 @@ function AssessmentDetail() {
             </div>
 
             <section className="mt-8 grid gap-4 sm:grid-cols-3">
-              {data.setup.map((item: { title: string; body: string }, index: number) => {
+              {setupItems.map((item: { title: string; body: string }, index: number) => {
                 const Icon = setupIcons[index % setupIcons.length]!;
                 return (
-                <div key={item.title} className="rounded-2xl border border-border bg-card p-5">
-                  <Icon className="size-4 text-primary" />
-                  <h2 className="mt-3 text-sm font-semibold">{item.title}</h2>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.body}</p>
-                </div>
+                  <div key={item.title} className="rounded-2xl border border-border bg-card p-5">
+                    <Icon className="size-4 text-primary" />
+                    <h2 className="mt-3 text-sm font-semibold">{item.title}</h2>
+                    <p className="mt-1 text-xs text-muted-foreground">{item.body}</p>
+                  </div>
                 );
               })}
             </section>
@@ -111,7 +119,7 @@ function AssessmentDetail() {
             <section className="mt-6 rounded-2xl border border-border bg-card p-6">
               <h2 className="text-base font-semibold">Protocol</h2>
               <ol className="mt-4 space-y-3">
-                {data.protocol.map((line: string, i: number) => (
+                {protocolItems.map((line: string, i: number) => (
                   <li key={line} className="flex gap-3 text-sm text-muted-foreground">
                     <span className="readout text-xs text-primary">0{i + 1}</span>
                     {line}
@@ -125,8 +133,8 @@ function AssessmentDetail() {
             </section>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg" disabled={data.status !== "available"}>
-                <Link to="/assessments/$slug/record" params={{ slug: data.slug }}>
+              <Button asChild size="lg" disabled={assessment.status !== "available"}>
+                <Link to="/assessments/$slug/record" params={{ slug: assessment.slug || slug }}>
                   Continue to camera check
                   <ArrowRight className="size-4" />
                 </Link>
