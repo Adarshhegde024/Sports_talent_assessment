@@ -1,28 +1,47 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ClientPoseDetector, SKELETON_CONNECTIONS } from "@/lib/vision/pose-detector";
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
-import { CheckCircle, ShieldAlert, Sparkles, UserCheck, UserX } from "lucide-react";
+import { CheckCircle, ShieldAlert, Sparkles, UserCheck, UserX, AlertTriangle } from "lucide-react";
+import {
+  extractAnthropometricVector,
+  compareBiometrics,
+  type AnthropometricVector,
+  type BiometricMatchResult,
+} from "@/lib/vision/athlete-biometrics";
 
 interface PoseDetectionOverlayProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   isRecording?: boolean;
   onPoseDetected?: (landmarks: NormalizedLandmark[]) => void;
+  athleteName?: string;
+  biometricBaseline?: AnthropometricVector | null;
+  onBiometricBaselineExtracted?: (vector: AnthropometricVector) => void;
+  onBiometricComparison?: (result: BiometricMatchResult) => void;
+  isMalpracticeActive?: boolean;
 }
 
 export function PoseDetectionOverlay({
   videoRef,
   isRecording = false,
   onPoseDetected,
+  athleteName = "Athlete",
+  biometricBaseline,
+  onBiometricBaselineExtracted,
+  onBiometricComparison,
+  isMalpracticeActive = false,
 }: PoseDetectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const detectorRef = useRef<ClientPoseDetector | null>(null);
   const animFrameRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number>(0);
+  const frameCounterRef = useRef<number>(0);
+  const calibrationSamplesRef = useRef<AnthropometricVector[]>([]);
 
   const [isHumanDetected, setIsHumanDetected] = useState(false);
   const [nodesCount, setNodesCount] = useState(0);
   const [kneeAngle, setKneeAngle] = useState<number | null>(null);
   const [isFullBodyVisible, setIsFullBodyVisible] = useState(false);
+  const [liveSimilarity, setLiveSimilarity] = useState<number | null>(null);
 
   // Initialize MediaPipe PoseLandmarker
   useEffect(() => {
@@ -78,6 +97,36 @@ export function PoseDetectionOverlay({
             setIsHumanDetected(true);
             onPoseDetected?.(rawLandmarks);
 
+            frameCounterRef.current += 1;
+
+            // Extract biometric vector every 3 frames for anti-malpractice verification
+            if (frameCounterRef.current % 3 === 0) {
+              const vector = extractAnthropometricVector(rawLandmarks, athleteName);
+              if (vector) {
+                if (!biometricBaseline && onBiometricBaselineExtracted) {
+                  // Calibration: Collect 10 stable frame vectors to lock the baseline
+                  calibrationSamplesRef.current.push(vector);
+                  if (calibrationSamplesRef.current.length >= 10) {
+                    const samples = calibrationSamplesRef.current;
+                    const avgVector: AnthropometricVector = {
+                      shoulderToTorso: samples.reduce((acc, s) => acc + s.shoulderToTorso, 0) / samples.length,
+                      torsoToLeg: samples.reduce((acc, s) => acc + s.torsoToLeg, 0) / samples.length,
+                      femurToTibia: samples.reduce((acc, s) => acc + s.femurToTibia, 0) / samples.length,
+                      armToTorso: samples.reduce((acc, s) => acc + s.armToTorso, 0) / samples.length,
+                      shoulderToHip: samples.reduce((acc, s) => acc + s.shoulderToHip, 0) / samples.length,
+                      timestamp: Date.now(),
+                      athleteName,
+                    };
+                    onBiometricBaselineExtracted(avgVector);
+                  }
+                } else if (biometricBaseline && onBiometricComparison) {
+                  const comp = compareBiometrics(biometricBaseline, vector);
+                  setLiveSimilarity(comp.similarityScore);
+                  onBiometricComparison(comp);
+                }
+              }
+            }
+
             // Count valid visible nodes
             const visibleNodes = rawLandmarks.filter(
               (lm) => (lm.visibility ?? 1) >= 0.3
@@ -113,10 +162,10 @@ export function PoseDetectionOverlay({
             }
 
             // Draw Skeletal Edges (Bones connecting joints)
-            drawSkeletonEdges(ctx, rawLandmarks, canvas.width, canvas.height, isRecording);
+            drawSkeletonEdges(ctx, rawLandmarks, canvas.width, canvas.height, isRecording, isMalpracticeActive);
 
             // Draw Joint Nodes on tracked landmarks
-            drawJointNodes(ctx, rawLandmarks, canvas.width, canvas.height, isRecording);
+            drawJointNodes(ctx, rawLandmarks, canvas.width, canvas.height, isRecording, isMalpracticeActive);
 
             // Draw Center of Mass (Midpoint of Hips)
             if (leftHip && rightHip && (leftHip.visibility ?? 1) > 0.3 && (rightHip.visibility ?? 1) > 0.3) {
@@ -126,10 +175,31 @@ export function PoseDetectionOverlay({
               ctx.save();
               ctx.beginPath();
               ctx.arc(comX, comY, 7, 0, 2 * Math.PI);
-              ctx.fillStyle = isRecording ? "#ef4444" : "#10b981";
-              ctx.shadowColor = isRecording ? "rgba(239, 68, 68, 0.9)" : "rgba(16, 185, 129, 0.9)";
+              ctx.fillStyle = isMalpracticeActive ? "#dc2626" : isRecording ? "#ef4444" : "#10b981";
+              ctx.shadowColor = isMalpracticeActive ? "rgba(220, 38, 38, 1)" : isRecording ? "rgba(239, 68, 68, 0.9)" : "rgba(16, 185, 129, 0.9)";
               ctx.shadowBlur = 10;
               ctx.fill();
+              ctx.restore();
+            }
+
+            // If Malpractice is active, draw floating red warning tag over the head
+            if (isMalpracticeActive && head && (head.visibility ?? 1) > 0.35) {
+              const hx = head.x * canvas.width;
+              const hy = Math.max(28, head.y * canvas.height - 30);
+              ctx.save();
+              ctx.fillStyle = "rgba(220, 38, 38, 0.92)";
+              ctx.strokeStyle = "#ffffff";
+              ctx.lineWidth = 1.5;
+              ctx.font = "bold 11px system-ui, sans-serif";
+              ctx.textAlign = "center";
+              const tagText = "🚨 PROXY / UNAUTHORIZED PERSON";
+              const textWidth = ctx.measureText(tagText).width + 16;
+              ctx.beginPath();
+              ctx.roundRect(hx - textWidth / 2, hy - 14, textWidth, 22, 6);
+              ctx.fill();
+              ctx.stroke();
+              ctx.fillStyle = "#ffffff";
+              ctx.fillText(tagText, hx, hy + 2);
               ctx.restore();
             }
           } else {
@@ -185,6 +255,29 @@ export function PoseDetectionOverlay({
             </>
           )}
         </div>
+
+        {/* Biometric Identity Verification Badge */}
+        {biometricBaseline && isHumanDetected && (
+          <div
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold backdrop-blur-md shadow-lg transition-all ${
+              isMalpracticeActive
+                ? "bg-red-950/80 text-red-300 border border-red-500/60 animate-pulse"
+                : "bg-emerald-950/80 text-emerald-300 border border-emerald-500/40"
+            }`}
+          >
+            {isMalpracticeActive ? (
+              <>
+                <ShieldAlert className="size-3.5 text-red-400" />
+                <span>Malpractice: Proxy Detected {liveSimilarity !== null ? `(${Math.round(liveSimilarity * 100)}%)` : ""}</span>
+              </>
+            ) : (
+              <>
+                <UserCheck className="size-3.5 text-emerald-400" />
+                <span>Identity Verified: {biometricBaseline.athleteName || athleteName}</span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Live Knee Angle Readout (Only visible when human is detected) */}
         {isHumanDetected && kneeAngle !== null && (
@@ -249,7 +342,8 @@ function drawSkeletonEdges(
   landmarks: NormalizedLandmark[],
   width: number,
   height: number,
-  isRecording: boolean
+  isRecording: boolean,
+  isMalpractice = false
 ) {
   ctx.save();
   ctx.lineCap = "round";
@@ -275,16 +369,24 @@ function drawSkeletonEdges(
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
-      ctx.strokeStyle = isRecording ? "rgba(239, 68, 68, 0.45)" : "rgba(16, 185, 129, 0.45)";
-      ctx.lineWidth = 6;
+      ctx.strokeStyle = isMalpractice
+        ? "rgba(239, 68, 68, 0.75)"
+        : isRecording
+        ? "rgba(239, 68, 68, 0.45)"
+        : "rgba(16, 185, 129, 0.45)";
+      ctx.lineWidth = isMalpractice ? 7 : 6;
       ctx.stroke();
 
       // Inner crisp bone line
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
-      ctx.strokeStyle = isRecording ? "#f87171" : (conn.color || "#34d399");
-      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = isMalpractice
+        ? "#ef4444"
+        : isRecording
+        ? "#f87171"
+        : (conn.color || "#34d399");
+      ctx.lineWidth = isMalpractice ? 3 : 2.5;
       ctx.stroke();
     }
   }
@@ -300,7 +402,8 @@ function drawJointNodes(
   landmarks: NormalizedLandmark[],
   width: number,
   height: number,
-  isRecording: boolean
+  isRecording: boolean,
+  isMalpractice = false
 ) {
   ctx.save();
 
@@ -316,15 +419,25 @@ function drawJointNodes(
       // Outer glow circle
       ctx.beginPath();
       ctx.arc(x, y, radius + 3, 0, 2 * Math.PI);
-      ctx.fillStyle = isRecording ? "rgba(239, 68, 68, 0.35)" : "rgba(6, 182, 212, 0.35)";
+      ctx.fillStyle = isMalpractice
+        ? "rgba(239, 68, 68, 0.5)"
+        : isRecording
+        ? "rgba(239, 68, 68, 0.35)"
+        : "rgba(6, 182, 212, 0.35)";
       ctx.fill();
 
       // Inner solid node core
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
-      ctx.fillStyle = isRecording ? "#ffffff" : isMajorJoint ? "#06b6d4" : "#10b981";
-      ctx.shadowColor = isRecording ? "#ef4444" : "#06b6d4";
-      ctx.shadowBlur = 8;
+      ctx.fillStyle = isMalpractice
+        ? "#ef4444"
+        : isRecording
+        ? "#ffffff"
+        : isMajorJoint
+        ? "#06b6d4"
+        : "#10b981";
+      ctx.shadowColor = isMalpractice ? "#dc2626" : isRecording ? "#ef4444" : "#06b6d4";
+      ctx.shadowBlur = isMalpractice ? 12 : 8;
       ctx.fill();
 
       // Center bright pip

@@ -11,11 +11,16 @@ import {
   Loader2,
   Plus,
   RotateCcw,
+  ShieldAlert,
+  Timer,
   Trash2,
   Upload,
   UploadCloud,
   Video,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
+import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -25,6 +30,11 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ASSESSMENTS } from "@/data/mock";
 import { useQueryClient } from "@tanstack/react-query";
 import { PoseDetectionOverlay } from "@/components/camera/PoseDetectionOverlay";
+import {
+  MalpracticeSiren,
+  type AnthropometricVector,
+  type BiometricMatchResult,
+} from "@/lib/vision/athlete-biometrics";
 
 export const Route = createFileRoute("/assessments/$slug/record")({
   head: () => ({
@@ -58,7 +68,15 @@ function RecordPage() {
   const definition = ASSESSMENTS.find((a) => a.slug === slug) ?? ASSESSMENTS[0]!;
   const totalAttempts = definition.attempts;
 
-  const { attempts, addAttempt, removeAttempt, resetAttempts } = useAssessmentSession();
+  const {
+    attempts,
+    addAttempt,
+    removeAttempt,
+    resetAttempts,
+    profile,
+    biometricBaseline,
+    lockBiometricBaseline,
+  } = useAssessmentSession();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -72,6 +90,119 @@ function RecordPage() {
   const [elapsed, setElapsed] = useState(0);
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Anti-Malpractice & Identity Verification State
+  const [isMalpracticeActive, setIsMalpracticeActive] = useState(false);
+  const [malpracticeCountdown, setMalpracticeCountdown] = useState(30);
+  const [malpracticeReason, setMalpracticeReason] = useState<string>("");
+  const [isSirenMuted, setIsSirenMuted] = useState(false);
+
+  const sirenRef = useRef<MalpracticeSiren>(new MalpracticeSiren());
+  const isMalpracticeActiveRef = useRef(false);
+  const consecutiveMismatchRef = useRef(0);
+  const consecutiveMatchRef = useRef(0);
+
+  // Stop siren on component unmount
+  useEffect(() => {
+    return () => {
+      sirenRef.current.stop();
+    };
+  }, []);
+
+  // Toggle siren mute for accessibility
+  const toggleSirenMute = useCallback(() => {
+    setIsSirenMuted((prev) => {
+      const next = !prev;
+      sirenRef.current.setMute(next);
+      return next;
+    });
+  }, []);
+
+  // Biometric Baseline Extraction (for initial assessment)
+  const handleBiometricBaselineExtracted = useCallback(
+    (vector: AnthropometricVector) => {
+      if (!biometricBaseline) {
+        lockBiometricBaseline({
+          ...vector,
+          athleteName: profile.name || "Athlete",
+        });
+        toast.info(
+          `Biometric athlete identity locked for ${profile.name || "Athlete"}. All assessments must be completed by this athlete.`,
+          { duration: 4000 }
+        );
+      }
+    },
+    [biometricBaseline, lockBiometricBaseline, profile.name]
+  );
+
+  // Real-Time Biometric Comparison & Impersonation Detection
+  const handleBiometricComparison = useCallback(
+    (result: BiometricMatchResult) => {
+      if (!biometricBaseline) return;
+
+      if (!result.isMatch) {
+        consecutiveMatchRef.current = 0;
+        consecutiveMismatchRef.current += 1;
+
+        // Sustained mismatch for ~4 frames (~0.5s of detection)
+        if (consecutiveMismatchRef.current >= 4) {
+          if (!isMalpracticeActiveRef.current) {
+            isMalpracticeActiveRef.current = true;
+            setIsMalpracticeActive(true);
+            setMalpracticeCountdown(30);
+            setMalpracticeReason(result.reason || "Anatomical bone proportions do not match the verified athlete.");
+            sirenRef.current.start();
+
+            // If actively recording, halt attempt
+            if (recorderRef.current && recorderRef.current.state === "recording") {
+              recorderRef.current.stop();
+            }
+          }
+        }
+      } else {
+        consecutiveMismatchRef.current = 0;
+        consecutiveMatchRef.current += 1;
+
+        // Sustained match for ~3 frames (~0.4s) -> Original athlete has returned!
+        if (consecutiveMatchRef.current >= 3) {
+          if (isMalpracticeActiveRef.current) {
+            isMalpracticeActiveRef.current = false;
+            setIsMalpracticeActive(false);
+            sirenRef.current.stop();
+            setMalpracticeCountdown(30);
+            toast.success("Original athlete recognized! Assessment unlocked.", { duration: 3000 });
+          }
+        }
+      }
+    },
+    [biometricBaseline]
+  );
+
+  // 30-Second Malpractice Auto-Abort Timer
+  useEffect(() => {
+    if (!isMalpracticeActive) return;
+
+    const timer = setInterval(() => {
+      setMalpracticeCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // Auto-abort!
+          sirenRef.current.stop();
+          stopStream();
+          resetAttempts();
+          toast.error(
+            "Assessment Terminated: Malpractice detected — original athlete did not return within 30 seconds.",
+            { duration: 7000 }
+          );
+          navigate({ to: "/dashboard" });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isMalpracticeActive, navigate, resetAttempts, stopStream]);
 
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
 
@@ -289,18 +420,110 @@ function RecordPage() {
                 />
                 {permission === "granted" && (
                   <>
-                    <PoseDetectionOverlay videoRef={videoRef} isRecording={false} />
-                    <button
-                      type="button"
-                      onClick={toggleFacingMode}
-                      className="absolute top-3 right-3 z-30 flex items-center gap-1.5 rounded-full bg-zinc-950/80 border border-white/20 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-zinc-900 transition-all active:scale-95 shadow-md"
-                      title="Flip Camera (Front / Rear)"
-                    >
-                      <RotateCcw className="size-3.5 text-emerald-400" />
-                      <span>{facingMode === "environment" ? "Rear Camera" : "Selfie Camera"}</span>
-                    </button>
+                    <PoseDetectionOverlay
+                      videoRef={videoRef}
+                      isRecording={false}
+                      biometricBaseline={biometricBaseline}
+                      onBiometricBaselineExtracted={handleBiometricBaselineExtracted}
+                      onBiometricComparison={handleBiometricComparison}
+                      isMalpracticeActive={isMalpracticeActive}
+                      athleteName={profile.name || "Athlete"}
+                    />
+                    {!isMalpracticeActive && (
+                      <button
+                        type="button"
+                        onClick={toggleFacingMode}
+                        className="absolute top-3 right-3 z-30 flex items-center gap-1.5 rounded-full bg-zinc-950/80 border border-white/20 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-zinc-900 transition-all active:scale-95 shadow-md"
+                        title="Flip Camera (Front / Rear)"
+                      >
+                        <RotateCcw className="size-3.5 text-emerald-400" />
+                        <span>{facingMode === "environment" ? "Rear Camera" : "Selfie Camera"}</span>
+                      </button>
+                    )}
                   </>
                 )}
+
+                {/* ANTI-MALPRACTICE RED ALARM OVERLAY */}
+                {isMalpracticeActive && (
+                  <div className="absolute inset-0 z-40 flex flex-col items-center justify-center p-6 text-center bg-red-950/90 backdrop-blur-md border-4 border-red-500 animate-pulse">
+                    <div className="relative mb-3">
+                      <div className="size-20 rounded-full bg-red-600/30 border-2 border-red-500 flex items-center justify-center animate-ping absolute inset-0" />
+                      <div className="relative size-20 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-2xl">
+                        <ShieldAlert className="size-10" />
+                      </div>
+                    </div>
+
+                    <h3 className="text-xl sm:text-2xl font-black uppercase tracking-wider text-red-100 flex items-center gap-2">
+                      <span>🚨 MALPRACTICE DETECTED 🚨</span>
+                    </h3>
+                    <p className="mt-1 text-sm font-semibold text-red-200">
+                      Unauthorized Person / Proxy Impersonation Detected
+                    </p>
+
+                    <div className="mt-3 max-w-md rounded-xl bg-black/60 border border-red-500/50 p-3 text-xs text-red-100/90 text-left space-y-1">
+                      <p>
+                        <strong className="text-white">Registered Athlete:</strong> {biometricBaseline?.athleteName || profile.name || "Original Athlete"}
+                      </p>
+                      <p>
+                        <strong className="text-white">Biometric Violation:</strong> {malpracticeReason || "Candidate's skeletal anthropometrics do not match the verified baseline."}
+                      </p>
+                      <p className="text-[11px] text-amber-300">
+                        ⚠️ Only the athlete who started assessment #1 is authorized to take all subsequent tests.
+                      </p>
+                    </div>
+
+                    <div className="mt-4 flex flex-col items-center gap-2">
+                      <div className="flex items-center gap-3 rounded-full bg-black/80 px-4 py-2 border border-red-400">
+                        <Timer className="size-5 text-red-400 animate-spin" />
+                        <span className="font-mono text-lg font-black text-white">
+                          Auto-Exit in {malpracticeCountdown}s
+                        </span>
+                      </div>
+                      <p className="text-xs text-red-200/80 max-w-sm">
+                        Original athlete must return to camera view immediately, or this session will automatically terminate and exit to the Dashboard.
+                      </p>
+                      <div className="w-64 h-2 bg-red-950 rounded-full overflow-hidden border border-red-500/50 mt-1">
+                        <div
+                          className="h-full bg-red-500 transition-all duration-1000 ease-linear"
+                          style={{ width: `${(malpracticeCountdown / 30) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={toggleSirenMute}
+                        className="flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 text-xs font-semibold text-white transition-all"
+                      >
+                        {isSirenMuted ? (
+                          <>
+                            <VolumeX className="size-3.5 text-amber-400" />
+                            <span>Unmute Siren Alarm</span>
+                          </>
+                        ) : (
+                          <>
+                            <Volume2 className="size-3.5 text-red-300 animate-pulse" />
+                            <span>Mute Siren Alarm</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sirenRef.current.stop();
+                          stopStream();
+                          resetAttempts();
+                          navigate({ to: "/dashboard" });
+                        }}
+                        className="flex items-center gap-1.5 rounded-full bg-red-600/80 hover:bg-red-600 border border-red-400 px-3 py-1.5 text-xs font-semibold text-white transition-all"
+                      >
+                        <span>Exit to Dashboard Now</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {permission !== "granted" && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center text-inverse-foreground bg-zinc-950/90 backdrop-blur-sm">
                     <div className="size-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20 text-emerald-400">
@@ -350,17 +573,31 @@ function RecordPage() {
             <div className="flex flex-wrap gap-3">
               <Button
                 size="lg"
-                className="w-full sm:w-auto rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md active:scale-95 transition-all"
-                disabled={permission !== "granted"}
+                className={`w-full sm:w-auto rounded-xl font-semibold shadow-md active:scale-95 transition-all ${
+                  isMalpracticeActive
+                    ? "bg-red-600 hover:bg-red-700 text-white cursor-not-allowed opacity-90"
+                    : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                }`}
+                disabled={permission !== "granted" || isMalpracticeActive}
                 onClick={() => setStage("record")}
               >
-                <Video className="size-4 mr-2" />
-                Start Live Recording Session
+                {isMalpracticeActive ? (
+                  <>
+                    <ShieldAlert className="size-4 mr-2 text-white animate-bounce" />
+                    ⛔ Locked: Malpractice Detected
+                  </>
+                ) : (
+                  <>
+                    <Video className="size-4 mr-2" />
+                    Start Live Recording Session
+                  </>
+                )}
               </Button>
               <Button
                 size="lg"
                 variant="outline"
                 className="w-full sm:w-auto rounded-xl border-border hover:bg-muted/50"
+                disabled={isMalpracticeActive}
                 onClick={() => {
                   stopStream();
                   setMode("upload");
@@ -515,9 +752,17 @@ function RecordPage() {
               <div className="relative aspect-[3/4] sm:aspect-video max-h-[70vh]">
                 <video ref={videoRef} playsInline muted className="size-full object-cover" />
                 {permission === "granted" && (
-                  <PoseDetectionOverlay videoRef={videoRef} isRecording={isRecording} />
+                  <PoseDetectionOverlay
+                    videoRef={videoRef}
+                    isRecording={isRecording}
+                    biometricBaseline={biometricBaseline}
+                    onBiometricBaselineExtracted={handleBiometricBaselineExtracted}
+                    onBiometricComparison={handleBiometricComparison}
+                    isMalpracticeActive={isMalpracticeActive}
+                    athleteName={profile.name || "Athlete"}
+                  />
                 )}
-                {!isRecording && permission === "granted" && (
+                {!isRecording && !isMalpracticeActive && permission === "granted" && (
                   <button
                     type="button"
                     onClick={toggleFacingMode}
@@ -528,6 +773,88 @@ function RecordPage() {
                     <span>{facingMode === "environment" ? "Rear View" : "Selfie View"}</span>
                   </button>
                 )}
+
+                {/* ANTI-MALPRACTICE RED ALARM OVERLAY (RECORDING STAGE) */}
+                {isMalpracticeActive && (
+                  <div className="absolute inset-0 z-40 flex flex-col items-center justify-center p-6 text-center bg-red-950/90 backdrop-blur-md border-4 border-red-500 animate-pulse">
+                    <div className="relative mb-3">
+                      <div className="size-20 rounded-full bg-red-600/30 border-2 border-red-500 flex items-center justify-center animate-ping absolute inset-0" />
+                      <div className="relative size-20 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-2xl">
+                        <ShieldAlert className="size-10" />
+                      </div>
+                    </div>
+
+                    <h3 className="text-xl sm:text-2xl font-black uppercase tracking-wider text-red-100 flex items-center gap-2">
+                      <span>🚨 MALPRACTICE DETECTED 🚨</span>
+                    </h3>
+                    <p className="mt-1 text-sm font-semibold text-red-200">
+                      Unauthorized Person / Proxy Impersonation Detected
+                    </p>
+
+                    <div className="mt-3 max-w-md rounded-xl bg-black/60 border border-red-500/50 p-3 text-xs text-red-100/90 text-left space-y-1">
+                      <p>
+                        <strong className="text-white">Registered Athlete:</strong> {biometricBaseline?.athleteName || profile.name || "Original Athlete"}
+                      </p>
+                      <p>
+                        <strong className="text-white">Biometric Violation:</strong> {malpracticeReason || "Candidate's skeletal anthropometrics do not match the verified baseline."}
+                      </p>
+                      <p className="text-[11px] text-amber-300">
+                        ⚠️ Only the athlete who started assessment #1 is authorized to take all subsequent tests.
+                      </p>
+                    </div>
+
+                    <div className="mt-4 flex flex-col items-center gap-2">
+                      <div className="flex items-center gap-3 rounded-full bg-black/80 px-4 py-2 border border-red-400">
+                        <Timer className="size-5 text-red-400 animate-spin" />
+                        <span className="font-mono text-lg font-black text-white">
+                          Auto-Exit in {malpracticeCountdown}s
+                        </span>
+                      </div>
+                      <p className="text-xs text-red-200/80 max-w-sm">
+                        Original athlete must return to camera view immediately, or this session will automatically terminate and exit to the Dashboard.
+                      </p>
+                      <div className="w-64 h-2 bg-red-950 rounded-full overflow-hidden border border-red-500/50 mt-1">
+                        <div
+                          className="h-full bg-red-500 transition-all duration-1000 ease-linear"
+                          style={{ width: `${(malpracticeCountdown / 30) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={toggleSirenMute}
+                        className="flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 px-3 py-1.5 text-xs font-semibold text-white transition-all"
+                      >
+                        {isSirenMuted ? (
+                          <>
+                            <VolumeX className="size-3.5 text-amber-400" />
+                            <span>Unmute Siren Alarm</span>
+                          </>
+                        ) : (
+                          <>
+                            <Volume2 className="size-3.5 text-red-300 animate-pulse" />
+                            <span>Mute Siren Alarm</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sirenRef.current.stop();
+                          stopStream();
+                          resetAttempts();
+                          navigate({ to: "/dashboard" });
+                        }}
+                        className="flex items-center gap-1.5 rounded-full bg-red-600/80 hover:bg-red-600 border border-red-400 px-3 py-1.5 text-xs font-semibold text-white transition-all"
+                      >
+                        <span>Exit to Dashboard Now</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="pointer-events-none absolute inset-6 rounded-xl border-2 border-dashed border-primary/70" />
                 <div className="pointer-events-none absolute left-1/2 top-6 bottom-6 w-px -translate-x-1/2 bg-primary/30" />
                 <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-inverse/80 px-3 py-1.5 backdrop-blur-md">
@@ -550,12 +877,25 @@ function RecordPage() {
               {!isRecording ? (
                 <Button
                   size="lg"
-                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md active:scale-95 transition-all"
+                  className={`rounded-xl font-semibold shadow-md active:scale-95 transition-all ${
+                    isMalpracticeActive
+                      ? "bg-red-600 hover:bg-red-700 text-white cursor-not-allowed opacity-90"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  }`}
                   onClick={startAttempt}
-                  disabled={countdown !== null || attempts.length >= totalAttempts}
+                  disabled={countdown !== null || attempts.length >= totalAttempts || isMalpracticeActive}
                 >
-                  <Circle className="size-3.5 fill-current mr-2 text-red-400" />
-                  Record Attempt ({attempts.length + 1} of {totalAttempts})
+                  {isMalpracticeActive ? (
+                    <>
+                      <ShieldAlert className="size-4 mr-2 text-white animate-bounce" />
+                      ⛔ Locked: Malpractice Detected
+                    </>
+                  ) : (
+                    <>
+                      <Circle className="size-3.5 fill-current mr-2 text-red-400" />
+                      Record Attempt ({attempts.length + 1} of {totalAttempts})
+                    </>
+                  )}
                 </Button>
               ) : (
                 <Button size="lg" variant="destructive" className="rounded-xl font-semibold shadow-md active:scale-95 transition-all" onClick={stopAttempt}>
@@ -566,7 +906,7 @@ function RecordPage() {
                 size="lg"
                 variant="outline"
                 className="rounded-xl"
-                disabled={attempts.length === 0}
+                disabled={attempts.length === 0 || isMalpracticeActive}
                 onClick={() => setStage("review")}
               >
                 Review Attempts ({attempts.length}/{totalAttempts})

@@ -8,11 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import type { AthleteProfile, RecordedAttempt } from "@/lib/types";
+import type { AnthropometricVector } from "@/lib/vision/athlete-biometrics";
 import { DEFAULT_PROFILE } from "@/data/mock";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase/client";
 
 const PROFILE_KEY = "sportsense.profile";
+const BIOMETRICS_KEY = "sportsense.athlete_biometrics";
 
 export function calculateProfileCompleteness(profile: AthleteProfile | null): number {
   if (!profile) return 0;
@@ -51,6 +53,9 @@ interface SessionValue {
   addAttempt: (attempt: RecordedAttempt) => void;
   removeAttempt: (index: number) => void;
   resetAttempts: () => void;
+  biometricBaseline: AnthropometricVector | null;
+  lockBiometricBaseline: (vector: AnthropometricVector) => void;
+  clearBiometricBaseline: () => void;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -72,11 +77,45 @@ function readStoredProfile(): { profile: AthleteProfile; onboarded: boolean } {
   }
 }
 
+function readStoredBiometrics(): AnthropometricVector | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(BIOMETRICS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as AnthropometricVector;
+  } catch {
+    return null;
+  }
+}
+
 export function AssessmentSessionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [state, setState] = useState(() => readStoredProfile());
   const [isLoading, setIsLoading] = useState(false);
   const [attempts, setAttempts] = useState<RecordedAttempt[]>([]);
+  const [biometricBaseline, setBiometricBaseline] = useState<AnthropometricVector | null>(() => readStoredBiometrics());
+
+  const lockBiometricBaseline = useCallback((vector: AnthropometricVector) => {
+    setBiometricBaseline(vector);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem(BIOMETRICS_KEY, JSON.stringify(vector));
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
+  const clearBiometricBaseline = useCallback(() => {
+    setBiometricBaseline(null);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem(BIOMETRICS_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
 
   // Synchronize profile with Supabase and authenticated user in real time
   useEffect(() => {
@@ -87,11 +126,13 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
       if (typeof window !== "undefined") {
         try {
           window.localStorage.removeItem(PROFILE_KEY);
+          window.localStorage.removeItem(BIOMETRICS_KEY);
         } catch {
           /* ignore */
         }
       }
       setState({ profile: DEFAULT_PROFILE, onboarded: false });
+      setBiometricBaseline(null);
       return;
     }
 
@@ -284,8 +325,22 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
       addAttempt,
       removeAttempt,
       resetAttempts,
+      biometricBaseline,
+      lockBiometricBaseline,
+      clearBiometricBaseline,
     }),
-    [state, isLoading, attempts, saveProfile, addAttempt, removeAttempt, resetAttempts],
+    [
+      state,
+      isLoading,
+      attempts,
+      saveProfile,
+      addAttempt,
+      removeAttempt,
+      resetAttempts,
+      biometricBaseline,
+      lockBiometricBaseline,
+      clearBiometricBaseline,
+    ],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

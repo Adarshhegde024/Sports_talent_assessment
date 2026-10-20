@@ -1,12 +1,13 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, CheckCircle2, Ruler, Smartphone, Sun } from "lucide-react";
+import { ArrowRight, CheckCircle2, Ruler, ShieldCheck, Smartphone, Sun, UserCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getAssessment } from "@/lib/api";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { DISCLAIMER } from "@/data/mock";
+import { useAssessmentSession } from "@/lib/assessment-session";
 
 export const Route = createFileRoute("/assessments/$slug/")({
   head: () => ({
@@ -34,6 +35,7 @@ const setupIcons = [Smartphone, Ruler, Sun];
 
 function AssessmentDetail() {
   const { slug } = useParams({ from: "/assessments/$slug/" });
+  const { biometricBaseline } = useAssessmentSession();
   const { data, isLoading } = useQuery({
     queryKey: ["assessment", slug],
     queryFn: () => getAssessment(slug),
@@ -55,6 +57,42 @@ function AssessmentDetail() {
               <Chip label="Attempts" value={String(data.attempts)} />
               <Chip label="Level" value={data.difficulty} />
               <Chip label="Measures" value={data.metricLabel} />
+            </div>
+
+            {/* Identity Proctoring Status Banner */}
+            <div
+              className={`mt-6 rounded-2xl border p-4 text-xs flex items-center justify-between gap-3 shadow-sm ${
+                biometricBaseline
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100"
+                  : "border-primary/20 bg-primary/5 text-muted-foreground"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${
+                    biometricBaseline
+                      ? "bg-emerald-600 text-white"
+                      : "bg-primary/10 text-primary"
+                  }`}
+                >
+                  {biometricBaseline ? <ShieldCheck className="size-5" /> : <UserCheck className="size-5" />}
+                </div>
+                <div>
+                  <div className="font-bold flex items-center gap-2">
+                    <span>{biometricBaseline ? "Athlete Biometric Integrity Locked" : "AI Anti-Proxy Proctoring Active"}</span>
+                    {biometricBaseline && (
+                      <span className="rounded-full bg-emerald-600/20 px-2 py-0.5 text-[10px] font-mono text-emerald-600 dark:text-emerald-300">
+                        {biometricBaseline.athleteName}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[11px] opacity-90">
+                    {biometricBaseline
+                      ? `All tests in this battery must be completed by ${biometricBaseline.athleteName}. Proxy or substitute athletes will trigger an automatic malpractice lockdown & audio siren.`
+                      : "The athlete taking the first assessment will be biometrically registered. Only that athlete is permitted to take subsequent assessments."}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <section className="mt-8 grid gap-4 sm:grid-cols-3">
