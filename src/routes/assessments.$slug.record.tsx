@@ -195,7 +195,7 @@ function RecordPage() {
     [isFirstAssessment, registerFaceCandidate, slug]
   );
 
-  // 4. PHASE 2: Face Impersonation Verification (Assessments #2, 3, 4, 5)
+  // 4. PHASE 2: Face Impersonation & Anti-Proxy Verification (Assessments #2, 3, 4, 5)
   const handleFaceComparison = useCallback(
     (result: BiometricMatchResult, candidateSnapshot?: string) => {
       // Malpractice comparison is strictly active ONLY in Phase 2
@@ -203,23 +203,20 @@ function RecordPage() {
 
       if (!result.isMatch) {
         consecutiveMatchRef.current = 0;
-        consecutiveMismatchRef.current += 1;
 
-        // Sustained mismatch for ~4 frames (~0.5s of detection)
-        if (consecutiveMismatchRef.current >= 4) {
-          if (!isMalpracticeActiveRef.current) {
-            isMalpracticeActiveRef.current = true;
-            setIsMalpracticeActive(true);
-            setMalpracticeCountdown(30);
-            setProxySnapshot(candidateSnapshot || null);
-            setMalpracticeReason(
-              result.reason || "Facial proportions do not match the registered athlete from Assessment #1."
-            );
-            sirenRef.current?.start();
+        // PoseDetectionOverlay confirms sustained mismatch/multiple persons over the 2-second analysis window
+        if (!isMalpracticeActiveRef.current) {
+          isMalpracticeActiveRef.current = true;
+          setIsMalpracticeActive(true);
+          setMalpracticeCountdown(30);
+          setProxySnapshot(candidateSnapshot || null);
+          setMalpracticeReason(
+            result.reason || "Facial proportions do not match the registered athlete from Assessment #1."
+          );
+          sirenRef.current?.start();
 
-            if (recorderRef.current && recorderRef.current.state === "recording") {
-              recorderRef.current.stop();
-            }
+          if (recorderRef.current && recorderRef.current.state === "recording") {
+            recorderRef.current.stop();
           }
         }
       } else {
@@ -362,13 +359,20 @@ function RecordPage() {
     const run = await createAssessment(testSlug);
     await uploadAttempts(run.id, attempts, setProgress, testSlug);
 
-    // If completing Assessment #1, lock the face profile for all future tests in this battery
+    // If completing Assessment #1, lock the face profile ONLY if an athlete was successfully enrolled
     if (isFirstAssessment) {
-      lockFaceProfile(testSlug);
-      toast.info(
-        `Athlete face identity locked for ${faceProfile?.athleteName || profile.name || "Athlete"}. Assessments 2–5 are protected by AI face proctoring.`,
-        { duration: 5000 }
-      );
+      if (faceProfile?.photoDataUrl && faceProfile?.vector) {
+        lockFaceProfile(testSlug);
+        toast.info(
+          `Athlete face identity locked for ${faceProfile?.athleteName || profile.name || "Athlete"}. Assessments 2–5 are protected by AI face proctoring.`,
+          { duration: 5000 }
+        );
+      } else {
+        toast.warning(
+          "No athlete face was detected or enrolled during this test. Please ensure you are clearly visible in the camera frame.",
+          { duration: 5000 }
+        );
+      }
     }
 
     await queryClient.invalidateQueries({ queryKey: ["metrics"] });

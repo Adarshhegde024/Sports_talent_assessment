@@ -66,6 +66,12 @@ export const SKELETON_CONNECTIONS: SkeletonEdge[] = [
   { from: 28, to: 32, color: "#10b981" }, // right ankle -> right foot index
 ];
 
+export interface MultiPoseDetectionResult {
+  primaryPose: NormalizedLandmark[] | null;
+  allPoses: NormalizedLandmark[][];
+  poseCount: number;
+}
+
 export class ClientPoseDetector {
   private poseLandmarker: PoseLandmarker | null = null;
   private isInitializing = false;
@@ -88,7 +94,7 @@ export class ClientPoseDetector {
           delegate: "GPU",
         },
         runningMode: "VIDEO",
-        numPoses: 1,
+        numPoses: 3,
         minPoseDetectionConfidence: 0.5,
         minPosePresenceConfidence: 0.5,
         minTrackingConfidence: 0.5,
@@ -104,19 +110,36 @@ export class ClientPoseDetector {
     }
   }
 
-  public detectPose(videoElement: HTMLVideoElement, timestampMs: number): NormalizedLandmark[] | null {
-    if (!this.poseLandmarker || !this.isReady) return null;
-    if (videoElement.readyState < 2) return null;
+  public detectPoses(videoElement: HTMLVideoElement, timestampMs: number): MultiPoseDetectionResult {
+    if (!this.poseLandmarker || !this.isReady || videoElement.readyState < 2) {
+      return { primaryPose: null, allPoses: [], poseCount: 0 };
+    }
 
     try {
       const results = this.poseLandmarker.detectForVideo(videoElement, timestampMs);
       if (results.landmarks && results.landmarks.length > 0) {
-        return results.landmarks[0]!;
+        // Filter out ghost or noise detections: require at least 5 visible landmarks (>= 0.35)
+        const validPoses = results.landmarks.filter((pose) => {
+          const visibleCount = pose.filter((lm) => (lm.visibility ?? 1) >= 0.35).length;
+          return visibleCount >= 5;
+        });
+
+        return {
+          primaryPose: validPoses[0] || null,
+          allPoses: validPoses,
+          poseCount: validPoses.length,
+        };
       }
     } catch {
       // ignore frame dropped
     }
-    return null;
+
+    return { primaryPose: null, allPoses: [], poseCount: 0 };
+  }
+
+  public detectPose(videoElement: HTMLVideoElement, timestampMs: number): NormalizedLandmark[] | null {
+    const res = this.detectPoses(videoElement, timestampMs);
+    return res.primaryPose;
   }
 
   public close() {

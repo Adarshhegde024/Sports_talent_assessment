@@ -9,6 +9,7 @@ export interface AthleteProfile {
   heightCm?: number | undefined;
   fitnessLevel?: FitnessLevel | undefined;
   preferredSports?: string[] | undefined;
+  avatarUrl?: string | undefined;
 }
 
 export interface AssessmentDefinition {

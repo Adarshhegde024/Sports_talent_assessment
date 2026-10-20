@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { CheckCircle2, Edit3, Loader2, LogOut, Save, User, X } from "lucide-react";
+import { CheckCircle2, Edit3, Loader2, LogOut, Save, ShieldCheck, User, X } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,7 @@ const ALL_SPORTS = ["Basketball", "Volleyball", "Football", "Cricket", "Tennis",
 function ProfilePage() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const { profile, isOnboarded, saveProfile, isLoading } = useAssessmentSession();
+  const { profile, isOnboarded, saveProfile, isLoading, faceProfile } = useAssessmentSession();
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -148,6 +148,51 @@ function ProfilePage() {
               <LogOut className="size-3.5" />
               <span>Log out</span>
             </Button>
+          </div>
+        </div>
+
+        {/* Athlete Biometric Identity & Photo Card */}
+        <div className="mt-6 flex flex-col sm:flex-row items-center gap-5 rounded-2xl border border-border bg-card p-5 shadow-sm">
+          <div className="relative size-20 shrink-0 overflow-hidden rounded-2xl border-2 border-emerald-500/50 bg-muted shadow-md">
+            {profile.avatarUrl || faceProfile?.photoDataUrl ? (
+              <img
+                src={profile.avatarUrl || faceProfile?.photoDataUrl}
+                alt={profile.name || "Athlete"}
+                className="size-full object-cover"
+              />
+            ) : (
+              <div className="size-full flex flex-col items-center justify-center text-muted-foreground">
+                <User className="size-8 opacity-40" />
+                <span className="text-[9px] mt-0.5">No Photo</span>
+              </div>
+            )}
+            {faceProfile?.isLocked && (
+              <div className="absolute bottom-1 right-1 rounded-full bg-emerald-600 p-1 text-white shadow-sm" title="AI Biometric Face ID Enrolled">
+                <ShieldCheck className="size-3" />
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 text-center sm:text-left">
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <h2 className="text-base font-bold">{profile.name || "Athlete"}</h2>
+              {faceProfile?.isLocked ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                  <ShieldCheck className="size-3.5" />
+                  Biometric Face ID Enrolled
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                  Pending Test 1 Face Enrollment
+                </span>
+              )}
+            </div>
+
+            <p className="mt-1 text-xs text-muted-foreground">
+              {faceProfile?.isLocked
+                ? `Enrolled during Assessment #1. Verified face geometry protects battery integrity and prevents proxy submissions.`
+                : "Your facial geometry and photo will be automatically enrolled when you complete Assessment #1."}
+            </p>
           </div>
         </div>
 

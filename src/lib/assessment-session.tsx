@@ -162,13 +162,35 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
           /* ignore */
         }
       }
+
+      // Automatically sync enrolled photo to athlete profile avatar
+      const finalPhoto = photoDataUrl || prev?.photoDataUrl;
+      if (finalPhoto) {
+        setState((curr) => {
+          if (curr.profile.avatarUrl === finalPhoto) return curr;
+          const updatedProfile: AthleteProfile = {
+            ...curr.profile,
+            avatarUrl: finalPhoto,
+          };
+          if (typeof window !== "undefined") {
+            try {
+              window.localStorage.setItem(PROFILE_KEY, JSON.stringify(updatedProfile));
+            } catch {
+              /* ignore */
+            }
+          }
+          return { ...curr, profile: updatedProfile };
+        });
+      }
+
       return updated;
     });
   }, [state.profile.name]);
 
   const lockFaceProfile = useCallback((sourceSlug: string) => {
     setFaceProfile((prev) => {
-      if (!prev) return null;
+      // Guard: strictly do NOT lock if no face vector or snapshot was enrolled
+      if (!prev || !prev.vector || !prev.photoDataUrl) return null;
       const locked: AthleteFaceProfile = {
         ...prev,
         sourceAssessmentSlug: sourceSlug,
@@ -181,6 +203,26 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
           /* ignore */
         }
       }
+
+      // Sync avatarUrl to athlete profile
+      if (locked.photoDataUrl) {
+        setState((curr) => {
+          if (curr.profile.avatarUrl === locked.photoDataUrl) return curr;
+          const updatedProfile: AthleteProfile = {
+            ...curr.profile,
+            avatarUrl: locked.photoDataUrl,
+          };
+          if (typeof window !== "undefined") {
+            try {
+              window.localStorage.setItem(PROFILE_KEY, JSON.stringify(updatedProfile));
+            } catch {
+              /* ignore */
+            }
+          }
+          return { ...curr, profile: updatedProfile };
+        });
+      }
+
       return locked;
     });
   }, []);
@@ -255,12 +297,16 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
             .map((item: any) => item.sports?.name)
             .filter(Boolean);
 
+          const localRaw = typeof window !== "undefined" ? window.localStorage.getItem(PROFILE_KEY) : null;
+          const localAvatar = localRaw ? (JSON.parse(localRaw)?.avatarUrl as string | undefined) : undefined;
+
           const athleteProfile: AthleteProfile = {
             name: profileData.full_name || initialName,
             age: profileData.age ? Number(profileData.age) : undefined,
             heightCm: profileData.height ? Number(profileData.height) : undefined,
             fitnessLevel: profileData.fitness_level || undefined,
             preferredSports,
+            avatarUrl: profileData.avatar_url || localAvatar,
           };
 
           const completeness = calculateProfileCompleteness(athleteProfile);

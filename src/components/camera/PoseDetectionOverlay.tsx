@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ClientPoseDetector, SKELETON_CONNECTIONS } from "@/lib/vision/pose-detector";
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
-import { CheckCircle, ShieldAlert, Sparkles, UserCheck, UserX } from "lucide-react";
+import { AlertTriangle, CheckCircle, Loader2, ShieldAlert, Sparkles, UserCheck, UserX, Users } from "lucide-react";
 import {
   extractFacialVector,
   compareFaceBiometrics,
@@ -40,8 +40,12 @@ export function PoseDetectionOverlay({
   const lastTimestampRef = useRef<number>(0);
   const frameCounterRef = useRef<number>(0);
   const faceStableCountRef = useRef<number>(0);
+  const consecutiveMismatchRef = useRef<number>(0);
+  const multiPersonFramesRef = useRef<number>(0);
 
   const [isHumanDetected, setIsHumanDetected] = useState(false);
+  const [detectedPersonCount, setDetectedPersonCount] = useState(0);
+  const [isAnalyzingIdentity, setIsAnalyzingIdentity] = useState(false);
   const [nodesCount, setNodesCount] = useState(0);
   const [kneeAngle, setKneeAngle] = useState<number | null>(null);
   const [isFullBodyVisible, setIsFullBodyVisible] = useState(false);
@@ -89,48 +93,94 @@ export function PoseDetectionOverlay({
           const frameTime = Math.max(timestamp, lastTimestampRef.current + 1);
           lastTimestampRef.current = frameTime;
 
-          const rawLandmarks = detectorRef.current?.detectPose(video, frameTime) || null;
-          const humanPresent = isValidHumanPose(rawLandmarks);
+          const multiResult = detectorRef.current?.detectPoses(video, frameTime) || {
+            primaryPose: null,
+            allPoses: [],
+            poseCount: 0,
+          };
+          const validPoses = multiResult.allPoses.filter(isValidHumanPose);
+          const poseCount = validPoses.length;
+          const rawLandmarks = validPoses[0] || null;
 
-          if (humanPresent && rawLandmarks) {
+          if (poseCount > 0 && rawLandmarks) {
             setIsHumanDetected(true);
+            setDetectedPersonCount(poseCount);
             onPoseDetected?.(rawLandmarks);
 
             frameCounterRef.current += 1;
 
             // Process biometrics every 3 frames (~20 checks per second)
             if (frameCounterRef.current % 3 === 0) {
-              const faceVec = extractFacialVector(rawLandmarks, athleteName);
-
               if (!isProctoringEnabled) {
                 // ==========================================
                 // PHASE 1: ASSESSMENT #1 (REGISTRATION ONLY)
                 // ==========================================
-                if (faceVec) {
-                  faceStableCountRef.current += 1;
-                  // Capture high-quality face profile after 4 stable face frames
-                  if (faceStableCountRef.current >= 4 && !faceEnrolledSuccessfully) {
-                    const photo = captureFaceSnapshot(video, rawLandmarks);
-                    if (photo && onFaceCaptured) {
-                      onFaceCaptured(faceVec, photo);
-                      setFaceEnrolledSuccessfully(true);
+                // Guard: Exactly 1 person must be completely in frame
+                if (poseCount === 1) {
+                  const faceVec = extractFacialVector(rawLandmarks, athleteName);
+                  if (faceVec) {
+                    faceStableCountRef.current += 1;
+                    // Require 6 consecutive stable frames of clear face
+                    if (faceStableCountRef.current >= 6 && !faceEnrolledSuccessfully) {
+                      const photo = captureFaceSnapshot(video, rawLandmarks);
+                      if (photo && onFaceCaptured) {
+                        onFaceCaptured(faceVec, photo);
+                        setFaceEnrolledSuccessfully(true);
+                      }
                     }
                   }
+                } else {
+                  // Multiple people in frame during enrollment: reset stability counter
+                  faceStableCountRef.current = 0;
                 }
-                // NOTE: In Phase 1, onFaceComparison is NEVER called!
               } else if (isProctoringEnabled && faceProfile?.vector && onFaceComparison) {
                 // ==========================================
                 // PHASE 2: ASSESSMENTS #2, 3, 4, 5 (VERIFICATION)
                 // ==========================================
-                if (faceVec) {
-                  const comp = compareFaceBiometrics(faceProfile.vector, faceVec);
-                  setLiveSimilarity(comp.similarityScore);
+                if (poseCount > 1) {
+                  // Case A: Multiple persons detected in frame!
+                  consecutiveMismatchRef.current = 0;
+                  multiPersonFramesRef.current += 1;
+                  setIsAnalyzingIdentity(true);
 
-                  let proxySnapshot: string | undefined = undefined;
-                  if (!comp.isMatch) {
-                    proxySnapshot = captureFaceSnapshot(video, rawLandmarks) || undefined;
+                  // Sustained multiple people for >= 18 frames (~1.8-2.0s analysis window)
+                  if (multiPersonFramesRef.current >= 18) {
+                    onFaceComparison(
+                      {
+                        isMatch: false,
+                        similarityScore: 0,
+                        mismatchConfidence: 1,
+                        reason: `Multiple persons (${poseCount}) detected in camera frame. Only the registered athlete (${faceProfile.athleteName || athleteName}) is permitted.`,
+                      },
+                      undefined
+                    );
                   }
-                  onFaceComparison(comp, proxySnapshot);
+                } else if (poseCount === 1) {
+                  // Case B: Exactly 1 person in frame
+                  multiPersonFramesRef.current = 0;
+                  const faceVec = extractFacialVector(rawLandmarks, athleteName);
+
+                  if (faceVec) {
+                    const comp = compareFaceBiometrics(faceProfile.vector, faceVec);
+                    setLiveSimilarity(comp.similarityScore);
+
+                    if (comp.isMatch) {
+                      // Same registered athlete!
+                      consecutiveMismatchRef.current = 0;
+                      setIsAnalyzingIdentity(false);
+                      onFaceComparison(comp, undefined);
+                    } else {
+                      // Different person!
+                      consecutiveMismatchRef.current += 1;
+                      setIsAnalyzingIdentity(true);
+
+                      // Sustained mismatch for >= 18 frames (~1.8-2.0s analysis window)
+                      if (consecutiveMismatchRef.current >= 18) {
+                        const proxySnapshot = captureFaceSnapshot(video, rawLandmarks) || undefined;
+                        onFaceComparison(comp, proxySnapshot);
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -170,7 +220,15 @@ export function PoseDetectionOverlay({
             // Draw Skeletal Edges (Bones connecting joints)
             drawSkeletonEdges(ctx, rawLandmarks, canvas.width, canvas.height, isRecording, isMalpracticeActive);
 
-            // Draw Joint Nodes on tracked landmarks
+            // If multiple people in frame, highlight secondary persons in red/amber
+            if (validPoses.length > 1) {
+              for (let i = 1; i < validPoses.length; i++) {
+                drawSkeletonEdges(ctx, validPoses[i]!, canvas.width, canvas.height, isRecording, true);
+                drawJointNodes(ctx, validPoses[i]!, canvas.width, canvas.height, isRecording, true);
+              }
+            }
+
+            // Draw Joint Nodes on primary tracked landmarks
             drawJointNodes(ctx, rawLandmarks, canvas.width, canvas.height, isRecording, isMalpracticeActive);
 
             // Draw Center of Mass (Midpoint of Hips)
@@ -198,7 +256,7 @@ export function PoseDetectionOverlay({
               ctx.lineWidth = 1.5;
               ctx.font = "bold 11px system-ui, sans-serif";
               ctx.textAlign = "center";
-              const tagText = "🚨 PROXY / UNAUTHORIZED PERSON";
+              const tagText = poseCount > 1 ? "🚨 MULTIPLE PERSONS DETECTED" : "🚨 PROXY / UNAUTHORIZED PERSON";
               const textWidth = ctx.measureText(tagText).width + 16;
               ctx.beginPath();
               ctx.roundRect(hx - textWidth / 2, hy - 14, textWidth, 22, 6);
@@ -209,10 +267,17 @@ export function PoseDetectionOverlay({
               ctx.restore();
             }
           } else {
+            // Case C: No person detected in camera view
+            // DO NOT trigger malpractice! Empty room does not cause alarms.
             setIsHumanDetected(false);
+            setDetectedPersonCount(0);
             setNodesCount(0);
             setKneeAngle(null);
             setIsFullBodyVisible(false);
+            setIsAnalyzingIdentity(false);
+            faceStableCountRef.current = 0;
+            consecutiveMismatchRef.current = 0;
+            multiPersonFramesRef.current = 0;
           }
         }
       }
@@ -243,12 +308,19 @@ export function PoseDetectionOverlay({
         {/* Human Detection Status Badge */}
         <div
           className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold backdrop-blur-md shadow-lg transition-all ${
-            isHumanDetected
+            detectedPersonCount > 1
+              ? "bg-red-950/80 text-red-300 border border-red-500/50 animate-pulse"
+              : isHumanDetected
               ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
               : "bg-black/60 text-muted-foreground border border-white/10"
           }`}
         >
-          {isHumanDetected ? (
+          {detectedPersonCount > 1 ? (
+            <>
+              <Users className="size-3.5 text-red-400" />
+              <span>Multiple Persons Detected ({detectedPersonCount})</span>
+            </>
+          ) : isHumanDetected ? (
             <>
               <UserCheck className="size-3.5 text-emerald-400" />
               <span>Tracking {nodesCount} Body Nodes</span>
@@ -262,32 +334,42 @@ export function PoseDetectionOverlay({
         </div>
 
         {/* PHASE 1 (Assessment 1): Face Enrollment Badge */}
-        {!isProctoringEnabled && isHumanDetected && (
-          <div className="flex items-center gap-2 rounded-full bg-emerald-950/85 px-3 py-1.5 text-xs font-semibold text-emerald-300 border border-emerald-500/40 backdrop-blur-md shadow-lg animate-in fade-in">
-            {faceProfile?.photoDataUrl ? (
-              <img
-                src={faceProfile.photoDataUrl}
-                alt="Enrolled Face"
-                className="size-5 rounded-full object-cover border border-emerald-400"
-              />
-            ) : (
-              <UserCheck className="size-3.5 text-emerald-400" />
-            )}
-            <span>
-              {faceProfile?.photoDataUrl
-                ? `Face Enrolled: ${faceProfile.athleteName || athleteName}`
-                : "Registering Face Profile..."}
-            </span>
-          </div>
+        {!isProctoringEnabled && (
+          <>
+            {detectedPersonCount > 1 ? (
+              <div className="flex items-center gap-2 rounded-full bg-amber-950/85 px-3 py-1.5 text-xs font-semibold text-amber-300 border border-amber-500/40 backdrop-blur-md shadow-lg">
+                <AlertTriangle className="size-3.5 text-amber-400" />
+                <span>Ensure only 1 athlete is in frame to enroll</span>
+              </div>
+            ) : faceProfile?.photoDataUrl ? (
+              <div className="flex items-center gap-2 rounded-full bg-emerald-950/85 px-3 py-1.5 text-xs font-semibold text-emerald-300 border border-emerald-500/40 backdrop-blur-md shadow-lg animate-in fade-in">
+                <img
+                  src={faceProfile.photoDataUrl}
+                  alt="Enrolled Face"
+                  className="size-5 rounded-full object-cover border border-emerald-400"
+                />
+                <span>Face Enrolled: {faceProfile.athleteName || athleteName}</span>
+              </div>
+            ) : isHumanDetected ? (
+              <div className="flex items-center gap-2 rounded-full bg-emerald-950/85 px-3 py-1.5 text-xs font-semibold text-emerald-300 border border-emerald-500/40 backdrop-blur-md shadow-lg animate-in fade-in">
+                <Loader2 className="size-3.5 text-emerald-400 animate-spin" />
+                <span>Registering Face Profile... (Stay Still)</span>
+              </div>
+            ) : null}
+          </>
         )}
 
         {/* PHASE 2 (Assessments 2-5): Active Face Verification Badge */}
-        {isProctoringEnabled && faceProfile?.vector && isHumanDetected && (
+        {isProctoringEnabled && faceProfile?.vector && (
           <div
             className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold backdrop-blur-md shadow-lg transition-all ${
               isMalpracticeActive
                 ? "bg-red-950/90 text-red-300 border border-red-500/70 animate-pulse"
-                : "bg-emerald-950/85 text-emerald-300 border border-emerald-500/40"
+                : isAnalyzingIdentity
+                ? "bg-amber-950/85 text-amber-300 border border-amber-500/50 animate-pulse"
+                : isHumanDetected
+                ? "bg-emerald-950/85 text-emerald-300 border border-emerald-500/40"
+                : "bg-black/60 text-muted-foreground border border-white/10"
             }`}
           >
             {faceProfile?.photoDataUrl && (
@@ -295,7 +377,11 @@ export function PoseDetectionOverlay({
                 src={faceProfile.photoDataUrl}
                 alt="Registered Athlete"
                 className={`size-5 rounded-full object-cover border ${
-                  isMalpracticeActive ? "border-red-400" : "border-emerald-400"
+                  isMalpracticeActive
+                    ? "border-red-400"
+                    : isAnalyzingIdentity
+                    ? "border-amber-400"
+                    : "border-emerald-400"
                 }`}
               />
             )}
@@ -304,13 +390,23 @@ export function PoseDetectionOverlay({
                 <ShieldAlert className="size-3.5 text-red-400" />
                 <span>Malpractice: Unauthorized Person Detected</span>
               </>
-            ) : (
+            ) : isAnalyzingIdentity ? (
+              <>
+                <Loader2 className="size-3.5 text-amber-400 animate-spin" />
+                <span>Analyzing Athlete Identity...</span>
+              </>
+            ) : isHumanDetected ? (
               <>
                 <UserCheck className="size-3.5 text-emerald-400" />
                 <span>
                   Verified: {faceProfile.athleteName || athleteName}{" "}
                   {liveSimilarity !== null ? `(${Math.round(liveSimilarity * 100)}%)` : ""}
                 </span>
+              </>
+            ) : (
+              <>
+                <UserX className="size-3.5 text-muted-foreground" />
+                <span>Waiting for athlete...</span>
               </>
             )}
           </div>
