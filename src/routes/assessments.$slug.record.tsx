@@ -78,10 +78,15 @@ function RecordPage() {
     biometricBaseline,
     lockBiometricBaseline,
   } = useAssessmentSession();
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const sirenRef = useRef<MalpracticeSiren | null>(null);
+  if (!sirenRef.current && typeof window !== "undefined") {
+    sirenRef.current = new MalpracticeSiren();
+  }
 
   const [mode, setMode] = useState<CaptureMode>("camera");
   const [stage, setStage] = useState<Stage>("check");
@@ -91,6 +96,7 @@ function RecordPage() {
   const [elapsed, setElapsed] = useState(0);
   const [progress, setProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
 
   // Anti-Malpractice & Identity Verification State
   const [isMalpracticeActive, setIsMalpracticeActive] = useState(false);
@@ -98,118 +104,11 @@ function RecordPage() {
   const [malpracticeReason, setMalpracticeReason] = useState<string>("");
   const [isSirenMuted, setIsSirenMuted] = useState(false);
 
-  const sirenRef = useRef<MalpracticeSiren | null>(null);
-  if (!sirenRef.current && typeof window !== "undefined") {
-    sirenRef.current = new MalpracticeSiren();
-  }
   const isMalpracticeActiveRef = useRef(false);
   const consecutiveMismatchRef = useRef(0);
   const consecutiveMatchRef = useRef(0);
 
-  // Stop siren on component unmount
-  useEffect(() => {
-    return () => {
-      sirenRef.current?.stop();
-    };
-  }, []);
-
-  // Toggle siren mute for accessibility
-  const toggleSirenMute = useCallback(() => {
-    setIsSirenMuted((prev) => {
-      const next = !prev;
-      sirenRef.current?.setMute(next);
-      return next;
-    });
-  }, []);
-
-  // Biometric Baseline Extraction (for initial assessment)
-  const handleBiometricBaselineExtracted = useCallback(
-    (vector: AnthropometricVector) => {
-      if (!biometricBaseline) {
-        lockBiometricBaseline({
-          ...vector,
-          athleteName: profile.name || "Athlete",
-        });
-        toast.info(
-          `Biometric athlete identity locked for ${profile.name || "Athlete"}. All assessments must be completed by this athlete.`,
-          { duration: 4000 }
-        );
-      }
-    },
-    [biometricBaseline, lockBiometricBaseline, profile.name]
-  );
-
-  // Real-Time Biometric Comparison & Impersonation Detection
-  const handleBiometricComparison = useCallback(
-    (result: BiometricMatchResult) => {
-      if (!biometricBaseline) return;
-
-      if (!result.isMatch) {
-        consecutiveMatchRef.current = 0;
-        consecutiveMismatchRef.current += 1;
-
-        // Sustained mismatch for ~4 frames (~0.5s of detection)
-        if (consecutiveMismatchRef.current >= 4) {
-          if (!isMalpracticeActiveRef.current) {
-            isMalpracticeActiveRef.current = true;
-            setIsMalpracticeActive(true);
-            setMalpracticeCountdown(30);
-            setMalpracticeReason(result.reason || "Anatomical bone proportions do not match the verified athlete.");
-            sirenRef.current?.start();
-
-            // If actively recording, halt attempt
-            if (recorderRef.current && recorderRef.current.state === "recording") {
-              recorderRef.current.stop();
-            }
-          }
-        }
-      } else {
-        consecutiveMismatchRef.current = 0;
-        consecutiveMatchRef.current += 1;
-
-        // Sustained match for ~3 frames (~0.4s) -> Original athlete has returned!
-        if (consecutiveMatchRef.current >= 3) {
-          if (isMalpracticeActiveRef.current) {
-            isMalpracticeActiveRef.current = false;
-            setIsMalpracticeActive(false);
-            sirenRef.current?.stop();
-            setMalpracticeCountdown(30);
-            toast.success("Original athlete recognized! Assessment unlocked.", { duration: 3000 });
-          }
-        }
-      }
-    },
-    [biometricBaseline]
-  );
-
-  // 30-Second Malpractice Auto-Abort Timer
-  useEffect(() => {
-    if (!isMalpracticeActive) return;
-
-    const timer = setInterval(() => {
-      setMalpracticeCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          // Auto-abort!
-          sirenRef.current?.stop();
-          stopStream();
-          resetAttempts();
-          toast.error(
-            "Assessment Terminated: Malpractice detected — original athlete did not return within 30 seconds.",
-            { duration: 7000 }
-          );
-          navigate({ to: "/dashboard" });
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isMalpracticeActive, navigate, resetAttempts, stopStream]);
-
-  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
-
+  // 1. Camera Stream Management (defined early so callbacks and effects can access it safely)
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -256,6 +155,107 @@ function RecordPage() {
       void videoRef.current.play().catch(() => undefined);
     }
   }, [mode, stage, permission]);
+
+  // 2. Audio Siren Management
+  useEffect(() => {
+    return () => {
+      sirenRef.current?.stop();
+    };
+  }, []);
+
+  const toggleSirenMute = useCallback(() => {
+    setIsSirenMuted((prev) => {
+      const next = !prev;
+      sirenRef.current?.setMute(next);
+      return next;
+    });
+  }, []);
+
+  // 3. Biometric Baseline Extraction (for initial assessment)
+  const handleBiometricBaselineExtracted = useCallback(
+    (vector: AnthropometricVector) => {
+      if (!biometricBaseline) {
+        lockBiometricBaseline({
+          ...vector,
+          athleteName: profile.name || "Athlete",
+        });
+        toast.info(
+          `Biometric athlete identity locked for ${profile.name || "Athlete"}. All assessments must be completed by this athlete.`,
+          { duration: 4000 }
+        );
+      }
+    },
+    [biometricBaseline, lockBiometricBaseline, profile.name]
+  );
+
+  // 4. Real-Time Biometric Comparison & Impersonation Detection
+  const handleBiometricComparison = useCallback(
+    (result: BiometricMatchResult) => {
+      if (!biometricBaseline) return;
+
+      if (!result.isMatch) {
+        consecutiveMatchRef.current = 0;
+        consecutiveMismatchRef.current += 1;
+
+        // Sustained mismatch for ~4 frames (~0.5s of detection)
+        if (consecutiveMismatchRef.current >= 4) {
+          if (!isMalpracticeActiveRef.current) {
+            isMalpracticeActiveRef.current = true;
+            setIsMalpracticeActive(true);
+            setMalpracticeCountdown(30);
+            setMalpracticeReason(result.reason || "Anatomical bone proportions do not match the verified athlete.");
+            sirenRef.current?.start();
+
+            // If actively recording, halt attempt
+            if (recorderRef.current && recorderRef.current.state === "recording") {
+              recorderRef.current.stop();
+            }
+          }
+        }
+      } else {
+        consecutiveMismatchRef.current = 0;
+        consecutiveMatchRef.current += 1;
+
+        // Sustained match for ~3 frames (~0.4s) -> Original athlete has returned!
+        if (consecutiveMatchRef.current >= 3) {
+          if (isMalpracticeActiveRef.current) {
+            isMalpracticeActiveRef.current = false;
+            setIsMalpracticeActive(false);
+            sirenRef.current?.stop();
+            setMalpracticeCountdown(30);
+            toast.success("Original athlete recognized! Assessment unlocked.", { duration: 3000 });
+          }
+        }
+      }
+    },
+    [biometricBaseline]
+  );
+
+  // 5. 30-Second Malpractice Auto-Abort Timer (stopStream is now initialized above!)
+  useEffect(() => {
+    if (!isMalpracticeActive) return;
+
+    const timer = setInterval(() => {
+      setMalpracticeCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          // Auto-abort!
+          sirenRef.current?.stop();
+          stopStream();
+          resetAttempts();
+          toast.error(
+            "Assessment Terminated: Malpractice detected — original athlete did not return within 30 seconds.",
+            { duration: 7000 }
+          );
+          navigate({ to: "/dashboard" });
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isMalpracticeActive, navigate, resetAttempts, stopStream]);
 
   const startAttempt = useCallback(() => {
     if (!streamRef.current) return;

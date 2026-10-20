@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { listAssessments } from "@/lib/api";
+import { ASSESSMENTS } from "@/data/mock";
 
 export const Route = createFileRoute("/assessments/")({
   head: () => ({
@@ -32,7 +33,13 @@ export const Route = createFileRoute("/assessments/")({
 });
 
 function AssessmentsPage() {
-  const { data, isLoading } = useQuery({ queryKey: ["assessments"], queryFn: listAssessments });
+  const { data = ASSESSMENTS, isLoading } = useQuery({
+    queryKey: ["assessments"],
+    queryFn: listAssessments,
+    initialData: ASSESSMENTS,
+  });
+
+  const list = data && data.length > 0 ? data : ASSESSMENTS;
 
   return (
     <AppShell>
@@ -45,9 +52,9 @@ function AssessmentsPage() {
         </p>
 
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {isLoading
+          {isLoading && (!list || list.length === 0)
             ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-52 rounded-2xl" />)
-            : data?.map((assessment) => {
+            : list.map((assessment) => {
                 const available = assessment.status === "available";
                 return (
                   <article
