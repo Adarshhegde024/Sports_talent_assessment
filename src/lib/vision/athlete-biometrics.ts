@@ -10,6 +10,16 @@ export interface AnthropometricVector {
   athleteName?: string;
 }
 
+export interface FacialBiometricVector {
+  eyeToNoseRatio: number;
+  mouthWidthRatio: number;
+  noseToMouthRatio: number;
+  faceBreadthRatio: number;
+  faceHeightRatio: number;
+  timestamp: number;
+  athleteName?: string;
+}
+
 export interface BiometricMatchResult {
   isMatch: boolean;
   similarityScore: number; // 0 to 1
@@ -40,6 +50,102 @@ function midpoint(a: NormalizedLandmark, b: NormalizedLandmark): NormalizedLandm
 }
 
 /**
+ * Extracts a scale-invariant facial biometric vector from MediaPipe landmarks (0-10).
+ * Features are normalized by the Inter-Pupillary Distance (IPD) to ensure scale and distance invariance.
+ */
+export function extractFacialVector(
+  landmarks: NormalizedLandmark[] | null,
+  athleteName?: string
+): FacialBiometricVector | null {
+  if (!landmarks || landmarks.length < 11) return null;
+
+  // MediaPipe Face Landmarks:
+  // 0: nose, 2: left_eye, 5: right_eye, 7: left_ear, 8: right_ear, 9: mouth_left, 10: mouth_right
+  const nose = landmarks[0];
+  const leftEye = landmarks[2];
+  const rightEye = landmarks[5];
+  const leftEar = landmarks[7];
+  const rightEar = landmarks[8];
+  const mouthLeft = landmarks[9];
+  const mouthRight = landmarks[10];
+
+  const faceNodes = [nose, leftEye, rightEye, mouthLeft, mouthRight];
+  const minVis = 0.4;
+  const allVisible = faceNodes.every((n) => n && (n.visibility ?? 1) >= minVis);
+  if (!allVisible) return null;
+
+  // Base normalization unit: Inter-Pupillary Distance (distance between eyes)
+  const ipd = Math.max(0.015, dist3D(leftEye, rightEye));
+
+  const midEyes = midpoint(leftEye, rightEye);
+  const midMouth = midpoint(mouthLeft, mouthRight);
+
+  const eyeToNose = dist3D(midEyes, nose);
+  const noseToMouth = dist3D(nose, midMouth);
+  const mouthWidth = dist3D(mouthLeft, mouthRight);
+  const earDistance = dist3D(leftEar, rightEar);
+
+  return {
+    eyeToNoseRatio: parseFloat((eyeToNose / ipd).toFixed(4)),
+    mouthWidthRatio: parseFloat((mouthWidth / ipd).toFixed(4)),
+    noseToMouthRatio: parseFloat((noseToMouth / ipd).toFixed(4)),
+    faceBreadthRatio: parseFloat((earDistance / ipd).toFixed(4)),
+    faceHeightRatio: parseFloat(((eyeToNose + noseToMouth) / ipd).toFixed(4)),
+    timestamp: Date.now(),
+    athleteName,
+  };
+}
+
+/**
+ * Compares an active candidate facial vector against the locked baseline athlete face vector.
+ * Returns match status, weighted similarity score (0 to 1), and confidence.
+ */
+export function compareFaceBiometrics(
+  baseline: FacialBiometricVector,
+  candidate: FacialBiometricVector
+): BiometricMatchResult {
+  const ratioSim = (base: number, cand: number): number => {
+    if (base <= 0 || cand <= 0) return 0;
+    const diff = Math.abs(base - cand);
+    const pctDiff = diff / base;
+    return Math.max(0, 1 - pctDiff);
+  };
+
+  const s_mouthWidth = ratioSim(baseline.mouthWidthRatio, candidate.mouthWidthRatio);
+  const s_eyeToNose = ratioSim(baseline.eyeToNoseRatio, candidate.eyeToNoseRatio);
+  const s_noseToMouth = ratioSim(baseline.noseToMouthRatio, candidate.noseToMouthRatio);
+  const s_faceBreadth = ratioSim(baseline.faceBreadthRatio, candidate.faceBreadthRatio);
+  const s_faceHeight = ratioSim(baseline.faceHeightRatio, candidate.faceHeightRatio);
+
+  const weightedScore =
+    s_mouthWidth * 0.25 +
+    s_eyeToNose * 0.20 +
+    s_noseToMouth * 0.20 +
+    s_faceBreadth * 0.20 +
+    s_faceHeight * 0.15;
+
+  const scoreRounded = Math.round(weightedScore * 100) / 100;
+
+  // Thresholds:
+  // Same athlete: typically 0.82 - 0.98 similarity
+  // Different person: typically 0.45 - 0.72 similarity
+  const isMatch = scoreRounded >= 0.76;
+  const mismatchConfidence = Math.max(0, Math.min(1, 1 - scoreRounded));
+
+  let reason = undefined;
+  if (!isMatch) {
+    reason = `Facial biometric mismatch (Match: ${Math.round(scoreRounded * 100)}%). Face geometry differs from registered athlete.`;
+  }
+
+  return {
+    isMatch,
+    similarityScore: scoreRounded,
+    mismatchConfidence,
+    reason,
+  };
+}
+
+/**
  * Extracts a scale-invariant anatomical skeletal vector from 33 MediaPipe pose landmarks.
  * Because all values are dimensionless ratios, they remain constant regardless of distance to camera.
  */
@@ -48,14 +154,6 @@ export function extractAnthropometricVector(
   athleteName?: string
 ): AnthropometricVector | null {
   if (!landmarks || landmarks.length < 29) return null;
-
-  // MediaPipe Landmark Indices:
-  // 11: left_shoulder, 12: right_shoulder
-  // 13: left_elbow, 14: right_elbow
-  // 15: left_wrist, 16: right_wrist
-  // 23: left_hip, 24: right_hip
-  // 25: left_knee, 26: right_knee
-  // 27: left_ankle, 28: right_ankle
 
   const ls = landmarks[11];
   const rs = landmarks[12];
@@ -68,7 +166,6 @@ export function extractAnthropometricVector(
   const le = landmarks[13];
   const lw = landmarks[15];
 
-  // Visibility threshold check
   const minVis = 0.35;
   const keyNodes = [ls, rs, lh, rh, lk, rk, la, ra];
   const allVisible = keyNodes.every((n) => n && (n.visibility ?? 1) >= minVis);
@@ -83,7 +180,6 @@ export function extractAnthropometricVector(
   const torsoLength = Math.max(0.001, dist3D(midShoulder, midHip));
   const legLength = Math.max(0.001, dist3D(midHip, midAnkle));
 
-  // Femur & Tibia
   const leftFemur = dist3D(lh, lk);
   const leftTibia = dist3D(lk, la);
   const rightFemur = dist3D(rh, rk);
@@ -91,10 +187,8 @@ export function extractAnthropometricVector(
   const avgFemur = (leftFemur + rightFemur) / 2;
   const avgTibia = Math.max(0.001, (leftTibia + rightTibia) / 2);
 
-  // Arm length (shoulder -> elbow -> wrist)
   const armLen = dist3D(ls, le) + dist3D(le, lw);
 
-  // Biological bone ratios (scale-invariant)
   const shoulderToTorso = shoulderWidth / torsoLength;
   const torsoToLeg = torsoLength / legLength;
   const femurToTibia = avgFemur / avgTibia;
@@ -113,55 +207,59 @@ export function extractAnthropometricVector(
 }
 
 /**
- * Compares an active candidate vector against the locked baseline athlete vector.
- * Returns match status, weighted similarity score (0 to 1), and confidence.
+ * Captures a cropped, optimized JPEG thumbnail (128x128) of the athlete's face from the live video element.
  */
-export function compareBiometrics(
-  baseline: AnthropometricVector,
-  candidate: AnthropometricVector
-): BiometricMatchResult {
-  // Individual ratio tolerances
-  const ratioSim = (base: number, cand: number): number => {
-    if (base <= 0 || cand <= 0) return 0;
-    const diff = Math.abs(base - cand);
-    const pctDiff = diff / base;
-    return Math.max(0, 1 - pctDiff);
-  };
+export function captureFaceSnapshot(
+  video: HTMLVideoElement | null,
+  landmarks: NormalizedLandmark[] | null
+): string | null {
+  if (!video || !landmarks || landmarks.length < 11) return null;
+  if (!video.videoWidth || !video.videoHeight) return null;
 
-  // Weighted biometric score
-  // Shoulders-to-hip & torso-to-leg are the most distinct human skeletal invariants
-  const s_shoulderHip = ratioSim(baseline.shoulderToHip, candidate.shoulderToHip);
-  const s_torsoLeg = ratioSim(baseline.torsoToLeg, candidate.torsoToLeg);
-  const s_femurTibia = ratioSim(baseline.femurToTibia, candidate.femurToTibia);
-  const s_shoulderTorso = ratioSim(baseline.shoulderToTorso, candidate.shoulderToTorso);
-  const s_armTorso = ratioSim(baseline.armToTorso, candidate.armToTorso);
+  const nose = landmarks[0];
+  const leftEye = landmarks[2];
+  const rightEye = landmarks[5];
+  const mouthLeft = landmarks[9];
+  const mouthRight = landmarks[10];
+  const leftEar = landmarks[7];
+  const rightEar = landmarks[8];
 
-  const weightedScore =
-    s_shoulderHip * 0.30 +
-    s_torsoLeg * 0.25 +
-    s_femurTibia * 0.20 +
-    s_shoulderTorso * 0.15 +
-    s_armTorso * 0.10;
+  const facePoints = [nose, leftEye, rightEye, mouthLeft, mouthRight, leftEar, rightEar].filter(Boolean);
+  if (facePoints.length < 5) return null;
 
-  const scoreRounded = Math.round(weightedScore * 100) / 100;
+  let minX = Math.min(...facePoints.map((p) => p.x));
+  let maxX = Math.max(...facePoints.map((p) => p.x));
+  let minY = Math.min(...facePoints.map((p) => p.y));
+  let maxY = Math.max(...facePoints.map((p) => p.y));
 
-  // Thresholds calibrated on anatomical variation:
-  // Same athlete: typically 0.82 - 0.98 similarity
-  // Different person: typically 0.40 - 0.72 similarity
-  const isMatch = scoreRounded >= 0.76;
-  const mismatchConfidence = Math.max(0, Math.min(1, 1 - scoreRounded));
+  // Add 35% margin for complete head framing
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const padX = width * 0.35;
+  const padY = height * 0.35;
 
-  let reason = undefined;
-  if (!isMatch) {
-    reason = `Anatomical mismatch (Similarity: ${Math.round(scoreRounded * 100)}%). Skeletal proportions differ from verified athlete.`;
+  minX = Math.max(0, minX - padX);
+  maxX = Math.min(1, maxX + padX);
+  minY = Math.max(0, minY - padY);
+  maxY = Math.min(1, maxY + padY);
+
+  const srcX = minX * video.videoWidth;
+  const srcY = minY * video.videoHeight;
+  const srcW = Math.max(10, (maxX - minX) * video.videoWidth);
+  const srcH = Math.max(10, (maxY - minY) * video.videoHeight);
+
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, 128, 128);
+    return canvas.toDataURL("image/jpeg", 0.85);
+  } catch {
+    return null;
   }
-
-  return {
-    isMatch,
-    similarityScore: scoreRounded,
-    mismatchConfidence,
-    reason,
-  };
 }
 
 /**
@@ -192,11 +290,9 @@ export class MalpracticeSiren {
       this.gain = this.ctx.createGain();
 
       this.osc.type = "sawtooth";
-      // Safe, clear audible volume level
       const initialVolume = this.isMuted ? 0 : 0.18;
       this.gain.gain.setValueAtTime(initialVolume, this.ctx.currentTime);
 
-      // Sweeping frequency modulation between 640 Hz and 960 Hz (alarm siren effect)
       let freq = 640;
       let rising = true;
       this.osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
@@ -209,7 +305,7 @@ export class MalpracticeSiren {
         try {
           this.osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
         } catch {
-          // ignore context state errors
+          // ignore
         }
       }, 45);
 

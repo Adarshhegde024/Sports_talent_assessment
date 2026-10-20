@@ -36,7 +36,7 @@ const setupIcons = [Smartphone, Ruler, Sun];
 function AssessmentDetail() {
   const routeParams = useParams({ strict: false }) as { slug?: string };
   const slug = routeParams?.slug || "vertical-jump";
-  const { biometricBaseline } = useAssessmentSession();
+  const { biometricBaseline, faceProfile } = useAssessmentSession();
   const fallback = ASSESSMENTS.find((a) => a.slug === slug || a.id === slug) || ASSESSMENTS[0]!;
 
   const { data, isLoading } = useQuery({
@@ -48,6 +48,9 @@ function AssessmentDetail() {
   const assessment = data || fallback;
   const setupItems = assessment.setup && assessment.setup.length > 0 ? assessment.setup : fallback.setup;
   const protocolItems = assessment.protocol && assessment.protocol.length > 0 ? assessment.protocol : fallback.protocol;
+
+  const isEnrolled = Boolean(faceProfile?.isLocked && faceProfile?.vector);
+  const enrolledName = faceProfile?.athleteName || biometricBaseline?.athleteName || "Athlete";
 
   return (
     <AppShell>
@@ -70,34 +73,44 @@ function AssessmentDetail() {
             {/* Identity Proctoring Status Banner */}
             <div
               className={`mt-6 rounded-2xl border p-4 text-xs flex items-center justify-between gap-3 shadow-sm ${
-                biometricBaseline
+                isEnrolled
                   ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100"
                   : "border-primary/20 bg-primary/5 text-muted-foreground"
               }`}
             >
               <div className="flex items-center gap-3">
-                <div
-                  className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${
-                    biometricBaseline
-                      ? "bg-emerald-600 text-white"
-                      : "bg-primary/10 text-primary"
-                  }`}
-                >
-                  {biometricBaseline ? <ShieldCheck className="size-5" /> : <UserCheck className="size-5" />}
-                </div>
+                {faceProfile?.photoDataUrl ? (
+                  <img
+                    src={faceProfile.photoDataUrl}
+                    alt={enrolledName}
+                    className="size-11 rounded-xl object-cover border-2 border-emerald-500 shadow-sm shrink-0"
+                  />
+                ) : (
+                  <div
+                    className={`size-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      isEnrolled
+                        ? "bg-emerald-600 text-white"
+                        : "bg-primary/10 text-primary"
+                    }`}
+                  >
+                    {isEnrolled ? <ShieldCheck className="size-5" /> : <UserCheck className="size-5" />}
+                  </div>
+                )}
                 <div>
                   <div className="font-bold flex items-center gap-2">
-                    <span>{biometricBaseline ? "Athlete Biometric Integrity Locked" : "AI Anti-Proxy Proctoring Active"}</span>
-                    {biometricBaseline && (
-                      <span className="rounded-full bg-emerald-600/20 px-2 py-0.5 text-[10px] font-mono text-emerald-600 dark:text-emerald-300">
-                        {biometricBaseline.athleteName}
+                    <span>
+                      {isEnrolled ? "Athlete Face Identity Enrolled" : "Phase 1: Athlete Face Registration"}
+                    </span>
+                    {isEnrolled && (
+                      <span className="rounded-full bg-emerald-600/20 px-2 py-0.5 text-[10px] font-mono text-emerald-700 dark:text-emerald-300">
+                        {enrolledName}
                       </span>
                     )}
                   </div>
                   <p className="mt-0.5 text-[11px] opacity-90">
-                    {biometricBaseline
-                      ? `All tests in this battery must be completed by ${biometricBaseline.athleteName}. Proxy or substitute athletes will trigger an automatic malpractice lockdown & audio siren.`
-                      : "The athlete taking the first assessment will be biometrically registered. Only that athlete is permitted to take subsequent assessments."}
+                    {isEnrolled
+                      ? `AI proctoring is active. This assessment must be completed by ${enrolledName}. If another person attempts this test, recording locks with a red malpractice alert and siren.`
+                      : "During your first assessment, the camera automatically registers your facial biometrics. You will perform all remaining battery assessments without interruption."}
                   </p>
                 </div>
               </div>

@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Circle,
   FileVideo,
-  Info,
   Loader2,
   Plus,
   RotateCcw,
@@ -25,14 +24,14 @@ import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useAssessmentSession } from "@/lib/assessment-session";
-import { createAssessment, uploadAttempts } from "@/lib/api";
+import { createAssessment, getAssessmentHistory, uploadAttempts } from "@/lib/api";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { ASSESSMENTS } from "@/data/mock";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PoseDetectionOverlay } from "@/components/camera/PoseDetectionOverlay";
 import {
   MalpracticeSiren,
-  type AnthropometricVector,
+  type FacialBiometricVector,
   type BiometricMatchResult,
 } from "@/lib/vision/athlete-biometrics";
 
@@ -75,9 +74,23 @@ function RecordPage() {
     removeAttempt,
     resetAttempts,
     profile,
-    biometricBaseline,
-    lockBiometricBaseline,
+    faceProfile,
+    registerFaceCandidate,
+    lockFaceProfile,
   } = useAssessmentSession();
+
+  // Query assessment history to determine if this is Assessment #1 or a subsequent test
+  const { data: history } = useQuery({
+    queryKey: ["history"],
+    queryFn: getAssessmentHistory,
+    initialData: [],
+  });
+
+  const completedCount = (history || []).filter((h) => h.status === "completed").length;
+  // Assessment 1: 0 completed tests in history OR face profile is not yet locked
+  const isFirstAssessment = completedCount === 0 || !faceProfile?.isLocked;
+  // Active proctoring is enabled ONLY for subsequent assessments (Assessments 2 through 5)
+  const isProctoringEnabled = !isFirstAssessment && Boolean(faceProfile?.isLocked);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -98,17 +111,18 @@ function RecordPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
 
-  // Anti-Malpractice & Identity Verification State
+  // Anti-Malpractice & Identity Verification State (only active in Phase 2)
   const [isMalpracticeActive, setIsMalpracticeActive] = useState(false);
   const [malpracticeCountdown, setMalpracticeCountdown] = useState(30);
   const [malpracticeReason, setMalpracticeReason] = useState<string>("");
+  const [proxySnapshot, setProxySnapshot] = useState<string | null>(null);
   const [isSirenMuted, setIsSirenMuted] = useState(false);
 
   const isMalpracticeActiveRef = useRef(false);
   const consecutiveMismatchRef = useRef(0);
   const consecutiveMatchRef = useRef(0);
 
-  // 1. Camera Stream Management (defined early so callbacks and effects can access it safely)
+  // 1. Camera Stream Management (declared first so cleanup and callbacks access safely)
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -171,27 +185,21 @@ function RecordPage() {
     });
   }, []);
 
-  // 3. Biometric Baseline Extraction (for initial assessment)
-  const handleBiometricBaselineExtracted = useCallback(
-    (vector: AnthropometricVector) => {
-      if (!biometricBaseline) {
-        lockBiometricBaseline({
-          ...vector,
-          athleteName: profile.name || "Athlete",
-        });
-        toast.info(
-          `Biometric athlete identity locked for ${profile.name || "Athlete"}. All assessments must be completed by this athlete.`,
-          { duration: 4000 }
-        );
+  // 3. PHASE 1: Face Registration (Assessment #1)
+  const handleFaceCaptured = useCallback(
+    (vector: FacialBiometricVector, photoDataUrl: string) => {
+      if (isFirstAssessment) {
+        registerFaceCandidate(vector, photoDataUrl, slug);
       }
     },
-    [biometricBaseline, lockBiometricBaseline, profile.name]
+    [isFirstAssessment, registerFaceCandidate, slug]
   );
 
-  // 4. Real-Time Biometric Comparison & Impersonation Detection
-  const handleBiometricComparison = useCallback(
-    (result: BiometricMatchResult) => {
-      if (!biometricBaseline) return;
+  // 4. PHASE 2: Face Impersonation Verification (Assessments #2, 3, 4, 5)
+  const handleFaceComparison = useCallback(
+    (result: BiometricMatchResult, candidateSnapshot?: string) => {
+      // Malpractice comparison is strictly active ONLY in Phase 2
+      if (!isProctoringEnabled || !faceProfile?.isLocked) return;
 
       if (!result.isMatch) {
         consecutiveMatchRef.current = 0;
@@ -203,10 +211,12 @@ function RecordPage() {
             isMalpracticeActiveRef.current = true;
             setIsMalpracticeActive(true);
             setMalpracticeCountdown(30);
-            setMalpracticeReason(result.reason || "Anatomical bone proportions do not match the verified athlete.");
+            setProxySnapshot(candidateSnapshot || null);
+            setMalpracticeReason(
+              result.reason || "Facial proportions do not match the registered athlete from Assessment #1."
+            );
             sirenRef.current?.start();
 
-            // If actively recording, halt attempt
             if (recorderRef.current && recorderRef.current.state === "recording") {
               recorderRef.current.stop();
             }
@@ -216,11 +226,12 @@ function RecordPage() {
         consecutiveMismatchRef.current = 0;
         consecutiveMatchRef.current += 1;
 
-        // Sustained match for ~3 frames (~0.4s) -> Original athlete has returned!
+        // Sustained match for ~3 frames -> Original athlete has returned!
         if (consecutiveMatchRef.current >= 3) {
           if (isMalpracticeActiveRef.current) {
             isMalpracticeActiveRef.current = false;
             setIsMalpracticeActive(false);
+            setProxySnapshot(null);
             sirenRef.current?.stop();
             setMalpracticeCountdown(30);
             toast.success("Original athlete recognized! Assessment unlocked.", { duration: 3000 });
@@ -228,10 +239,10 @@ function RecordPage() {
         }
       }
     },
-    [biometricBaseline]
+    [isProctoringEnabled, faceProfile]
   );
 
-  // 5. 30-Second Malpractice Auto-Abort Timer (stopStream is now initialized above!)
+  // 5. 30-Second Malpractice Auto-Abort Timer
   useEffect(() => {
     if (!isMalpracticeActive) return;
 
@@ -239,7 +250,6 @@ function RecordPage() {
       setMalpracticeCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // Auto-abort!
           sirenRef.current?.stop();
           stopStream();
           resetAttempts();
@@ -351,13 +361,23 @@ function RecordPage() {
     const testSlug = definition.slug || definition.id;
     const run = await createAssessment(testSlug);
     await uploadAttempts(run.id, attempts, setProgress, testSlug);
+
+    // If completing Assessment #1, lock the face profile for all future tests in this battery
+    if (isFirstAssessment) {
+      lockFaceProfile(testSlug);
+      toast.info(
+        `Athlete face identity locked for ${faceProfile?.athleteName || profile.name || "Athlete"}. Assessments 2–5 are protected by AI face proctoring.`,
+        { duration: 5000 }
+      );
+    }
+
     await queryClient.invalidateQueries({ queryKey: ["metrics"] });
     await queryClient.invalidateQueries({ queryKey: ["history"] });
     await queryClient.invalidateQueries({ queryKey: ["results"] });
     stopStream();
     resetAttempts();
     navigate({ to: "/results/$runId", params: { runId: run.id } });
-  }, [attempts, definition.id, definition.slug, navigate, queryClient, resetAttempts, stopStream]);
+  }, [attempts, definition.id, definition.slug, faceProfile?.athleteName, isFirstAssessment, lockFaceProfile, navigate, profile.name, queryClient, resetAttempts, stopStream]);
 
   return (
     <AppShell>
@@ -427,9 +447,10 @@ function RecordPage() {
                     <PoseDetectionOverlay
                       videoRef={videoRef}
                       isRecording={false}
-                      biometricBaseline={biometricBaseline}
-                      onBiometricBaselineExtracted={handleBiometricBaselineExtracted}
-                      onBiometricComparison={handleBiometricComparison}
+                      isProctoringEnabled={isProctoringEnabled}
+                      faceProfile={faceProfile}
+                      onFaceCaptured={handleFaceCaptured}
+                      onFaceComparison={handleFaceComparison}
                       isMalpracticeActive={isMalpracticeActive}
                       athleteName={profile.name || "Athlete"}
                     />
@@ -447,46 +468,72 @@ function RecordPage() {
                   </>
                 )}
 
-                {/* ANTI-MALPRACTICE RED ALARM OVERLAY */}
+                {/* ANTI-MALPRACTICE RED ALARM OVERLAY (CHECK STAGE) */}
                 {isMalpracticeActive && (
-                  <div className="absolute inset-0 z-40 flex flex-col items-center justify-center p-6 text-center bg-red-950/90 backdrop-blur-md border-4 border-red-500 animate-pulse">
-                    <div className="relative mb-3">
-                      <div className="size-20 rounded-full bg-red-600/30 border-2 border-red-500 flex items-center justify-center animate-ping absolute inset-0" />
-                      <div className="relative size-20 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-2xl">
-                        <ShieldAlert className="size-10" />
+                  <div className="absolute inset-0 z-40 flex flex-col items-center justify-center p-6 text-center bg-red-950/95 backdrop-blur-md border-4 border-red-500 animate-pulse">
+                    <div className="relative mb-2">
+                      <div className="size-16 rounded-full bg-red-600/30 border-2 border-red-500 flex items-center justify-center animate-ping absolute inset-0" />
+                      <div className="relative size-16 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-2xl">
+                        <ShieldAlert className="size-8" />
                       </div>
                     </div>
 
-                    <h3 className="text-xl sm:text-2xl font-black uppercase tracking-wider text-red-100 flex items-center gap-2">
+                    <h3 className="text-lg sm:text-xl font-black uppercase tracking-wider text-red-100 flex items-center gap-2">
                       <span>🚨 MALPRACTICE DETECTED 🚨</span>
                     </h3>
-                    <p className="mt-1 text-sm font-semibold text-red-200">
-                      Unauthorized Person / Proxy Impersonation Detected
+                    <p className="mt-0.5 text-xs font-semibold text-red-200">
+                      Different Person / Proxy Impersonation Detected
                     </p>
 
-                    <div className="mt-3 max-w-md rounded-xl bg-black/60 border border-red-500/50 p-3 text-xs text-red-100/90 text-left space-y-1">
+                    {/* Side-by-Side Face Comparison */}
+                    <div className="mt-3 flex items-center justify-center gap-6 bg-black/60 border border-red-500/50 rounded-2xl p-3 max-w-md w-full">
+                      <div className="flex flex-col items-center text-center">
+                        <div className="size-16 rounded-full overflow-hidden border-2 border-emerald-400 bg-zinc-900 shadow-md">
+                          {faceProfile?.photoDataUrl ? (
+                            <img src={faceProfile.photoDataUrl} alt="Authorized" className="size-full object-cover" />
+                          ) : (
+                            <div className="size-full flex items-center justify-center text-xs text-muted-foreground">Original</div>
+                          )}
+                        </div>
+                        <span className="mt-1 text-[11px] font-bold text-emerald-300">Authorized Athlete</span>
+                        <span className="text-[10px] text-zinc-300 truncate max-w-[100px]">{faceProfile?.athleteName || profile.name || "Athlete"}</span>
+                      </div>
+
+                      <div className="text-red-400 font-bold text-sm">VS</div>
+
+                      <div className="flex flex-col items-center text-center">
+                        <div className="size-16 rounded-full overflow-hidden border-2 border-red-500 bg-zinc-900 shadow-md">
+                          {proxySnapshot ? (
+                            <img src={proxySnapshot} alt="Unauthorized Proxy" className="size-full object-cover" />
+                          ) : (
+                            <div className="size-full flex items-center justify-center text-xs text-red-300">Proxy</div>
+                          )}
+                        </div>
+                        <span className="mt-1 text-[11px] font-bold text-red-400">Unauthorized Person</span>
+                        <span className="text-[10px] text-red-200">Face Mismatch</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5 max-w-md rounded-xl bg-black/40 border border-red-500/30 p-2 text-[11px] text-red-100/90 text-left space-y-0.5">
                       <p>
-                        <strong className="text-white">Registered Athlete:</strong> {biometricBaseline?.athleteName || profile.name || "Original Athlete"}
+                        <strong className="text-white">Violation:</strong> {malpracticeReason || "Candidate's facial geometry does not match the registered athlete from Assessment #1."}
                       </p>
-                      <p>
-                        <strong className="text-white">Biometric Violation:</strong> {malpracticeReason || "Candidate's skeletal anthropometrics do not match the verified baseline."}
-                      </p>
-                      <p className="text-[11px] text-amber-300">
-                        ⚠️ Only the athlete who started assessment #1 is authorized to take all subsequent tests.
+                      <p className="text-amber-300">
+                        ⚠️ Only the athlete who completed Assessment #1 is authorized to take this test.
                       </p>
                     </div>
 
-                    <div className="mt-4 flex flex-col items-center gap-2">
-                      <div className="flex items-center gap-3 rounded-full bg-black/80 px-4 py-2 border border-red-400">
-                        <Timer className="size-5 text-red-400 animate-spin" />
-                        <span className="font-mono text-lg font-black text-white">
+                    <div className="mt-3 flex flex-col items-center gap-1.5">
+                      <div className="flex items-center gap-2 rounded-full bg-black/80 px-3 py-1.5 border border-red-400">
+                        <Timer className="size-4 text-red-400 animate-spin" />
+                        <span className="font-mono text-base font-black text-white">
                           Auto-Exit in {malpracticeCountdown}s
                         </span>
                       </div>
-                      <p className="text-xs text-red-200/80 max-w-sm">
-                        Original athlete must return to camera view immediately, or this session will automatically terminate and exit to the Dashboard.
+                      <p className="text-[11px] text-red-200/80 max-w-sm">
+                        Original athlete must return to camera view immediately or this test will automatically abort.
                       </p>
-                      <div className="w-64 h-2 bg-red-950 rounded-full overflow-hidden border border-red-500/50 mt-1">
+                      <div className="w-56 h-1.5 bg-red-950 rounded-full overflow-hidden border border-red-500/50 mt-0.5">
                         <div
                           className="h-full bg-red-500 transition-all duration-1000 ease-linear"
                           style={{ width: `${(malpracticeCountdown / 30) * 100}%` }}
@@ -494,7 +541,7 @@ function RecordPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                       <button
                         type="button"
                         onClick={toggleSirenMute}
@@ -759,9 +806,10 @@ function RecordPage() {
                   <PoseDetectionOverlay
                     videoRef={videoRef}
                     isRecording={isRecording}
-                    biometricBaseline={biometricBaseline}
-                    onBiometricBaselineExtracted={handleBiometricBaselineExtracted}
-                    onBiometricComparison={handleBiometricComparison}
+                    isProctoringEnabled={isProctoringEnabled}
+                    faceProfile={faceProfile}
+                    onFaceCaptured={handleFaceCaptured}
+                    onFaceComparison={handleFaceComparison}
                     isMalpracticeActive={isMalpracticeActive}
                     athleteName={profile.name || "Athlete"}
                   />
@@ -780,44 +828,70 @@ function RecordPage() {
 
                 {/* ANTI-MALPRACTICE RED ALARM OVERLAY (RECORDING STAGE) */}
                 {isMalpracticeActive && (
-                  <div className="absolute inset-0 z-40 flex flex-col items-center justify-center p-6 text-center bg-red-950/90 backdrop-blur-md border-4 border-red-500 animate-pulse">
-                    <div className="relative mb-3">
-                      <div className="size-20 rounded-full bg-red-600/30 border-2 border-red-500 flex items-center justify-center animate-ping absolute inset-0" />
-                      <div className="relative size-20 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-2xl">
-                        <ShieldAlert className="size-10" />
+                  <div className="absolute inset-0 z-40 flex flex-col items-center justify-center p-6 text-center bg-red-950/95 backdrop-blur-md border-4 border-red-500 animate-pulse">
+                    <div className="relative mb-2">
+                      <div className="size-16 rounded-full bg-red-600/30 border-2 border-red-500 flex items-center justify-center animate-ping absolute inset-0" />
+                      <div className="relative size-16 rounded-full bg-red-600 border-2 border-white flex items-center justify-center text-white shadow-2xl">
+                        <ShieldAlert className="size-8" />
                       </div>
                     </div>
 
-                    <h3 className="text-xl sm:text-2xl font-black uppercase tracking-wider text-red-100 flex items-center gap-2">
+                    <h3 className="text-lg sm:text-xl font-black uppercase tracking-wider text-red-100 flex items-center gap-2">
                       <span>🚨 MALPRACTICE DETECTED 🚨</span>
                     </h3>
-                    <p className="mt-1 text-sm font-semibold text-red-200">
-                      Unauthorized Person / Proxy Impersonation Detected
+                    <p className="mt-0.5 text-xs font-semibold text-red-200">
+                      Different Person / Proxy Impersonation Detected
                     </p>
 
-                    <div className="mt-3 max-w-md rounded-xl bg-black/60 border border-red-500/50 p-3 text-xs text-red-100/90 text-left space-y-1">
+                    {/* Side-by-Side Face Comparison */}
+                    <div className="mt-3 flex items-center justify-center gap-6 bg-black/60 border border-red-500/50 rounded-2xl p-3 max-w-md w-full">
+                      <div className="flex flex-col items-center text-center">
+                        <div className="size-16 rounded-full overflow-hidden border-2 border-emerald-400 bg-zinc-900 shadow-md">
+                          {faceProfile?.photoDataUrl ? (
+                            <img src={faceProfile.photoDataUrl} alt="Authorized" className="size-full object-cover" />
+                          ) : (
+                            <div className="size-full flex items-center justify-center text-xs text-muted-foreground">Original</div>
+                          )}
+                        </div>
+                        <span className="mt-1 text-[11px] font-bold text-emerald-300">Authorized Athlete</span>
+                        <span className="text-[10px] text-zinc-300 truncate max-w-[100px]">{faceProfile?.athleteName || profile.name || "Athlete"}</span>
+                      </div>
+
+                      <div className="text-red-400 font-bold text-sm">VS</div>
+
+                      <div className="flex flex-col items-center text-center">
+                        <div className="size-16 rounded-full overflow-hidden border-2 border-red-500 bg-zinc-900 shadow-md">
+                          {proxySnapshot ? (
+                            <img src={proxySnapshot} alt="Unauthorized Proxy" className="size-full object-cover" />
+                          ) : (
+                            <div className="size-full flex items-center justify-center text-xs text-red-300">Proxy</div>
+                          )}
+                        </div>
+                        <span className="mt-1 text-[11px] font-bold text-red-400">Unauthorized Person</span>
+                        <span className="text-[10px] text-red-200">Face Mismatch</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5 max-w-md rounded-xl bg-black/40 border border-red-500/30 p-2 text-[11px] text-red-100/90 text-left space-y-0.5">
                       <p>
-                        <strong className="text-white">Registered Athlete:</strong> {biometricBaseline?.athleteName || profile.name || "Original Athlete"}
+                        <strong className="text-white">Violation:</strong> {malpracticeReason || "Candidate's facial geometry does not match the registered athlete from Assessment #1."}
                       </p>
-                      <p>
-                        <strong className="text-white">Biometric Violation:</strong> {malpracticeReason || "Candidate's skeletal anthropometrics do not match the verified baseline."}
-                      </p>
-                      <p className="text-[11px] text-amber-300">
-                        ⚠️ Only the athlete who started assessment #1 is authorized to take all subsequent tests.
+                      <p className="text-amber-300">
+                        ⚠️ Only the athlete who completed Assessment #1 is authorized to take this test.
                       </p>
                     </div>
 
-                    <div className="mt-4 flex flex-col items-center gap-2">
-                      <div className="flex items-center gap-3 rounded-full bg-black/80 px-4 py-2 border border-red-400">
-                        <Timer className="size-5 text-red-400 animate-spin" />
-                        <span className="font-mono text-lg font-black text-white">
+                    <div className="mt-3 flex flex-col items-center gap-1.5">
+                      <div className="flex items-center gap-2 rounded-full bg-black/80 px-3 py-1.5 border border-red-400">
+                        <Timer className="size-4 text-red-400 animate-spin" />
+                        <span className="font-mono text-base font-black text-white">
                           Auto-Exit in {malpracticeCountdown}s
                         </span>
                       </div>
-                      <p className="text-xs text-red-200/80 max-w-sm">
-                        Original athlete must return to camera view immediately, or this session will automatically terminate and exit to the Dashboard.
+                      <p className="text-[11px] text-red-200/80 max-w-sm">
+                        Original athlete must return to camera view immediately or this test will automatically abort.
                       </p>
-                      <div className="w-64 h-2 bg-red-950 rounded-full overflow-hidden border border-red-500/50 mt-1">
+                      <div className="w-56 h-1.5 bg-red-950 rounded-full overflow-hidden border border-red-500/50 mt-0.5">
                         <div
                           className="h-full bg-red-500 transition-all duration-1000 ease-linear"
                           style={{ width: `${(malpracticeCountdown / 30) * 100}%` }}
@@ -825,7 +899,7 @@ function RecordPage() {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                       <button
                         type="button"
                         onClick={toggleSirenMute}

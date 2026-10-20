@@ -8,13 +8,23 @@ import {
   type ReactNode,
 } from "react";
 import type { AthleteProfile, RecordedAttempt } from "@/lib/types";
-import type { AnthropometricVector } from "@/lib/vision/athlete-biometrics";
+import type { AnthropometricVector, FacialBiometricVector } from "@/lib/vision/athlete-biometrics";
 import { DEFAULT_PROFILE } from "@/data/mock";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase/client";
 
 const PROFILE_KEY = "sportsense.profile";
 const BIOMETRICS_KEY = "sportsense.athlete_biometrics";
+const FACE_PROFILE_KEY = "sportsense.athlete_face_profile";
+
+export interface AthleteFaceProfile {
+  vector: FacialBiometricVector;
+  photoDataUrl?: string;
+  athleteName: string;
+  sourceAssessmentSlug: string;
+  enrolledAt: string;
+  isLocked: boolean;
+}
 
 export function calculateProfileCompleteness(profile: AthleteProfile | null): number {
   if (!profile) return 0;
@@ -56,6 +66,10 @@ interface SessionValue {
   biometricBaseline: AnthropometricVector | null;
   lockBiometricBaseline: (vector: AnthropometricVector) => void;
   clearBiometricBaseline: () => void;
+  faceProfile: AthleteFaceProfile | null;
+  registerFaceCandidate: (vector: FacialBiometricVector, photoDataUrl?: string, sourceSlug?: string) => void;
+  lockFaceProfile: (sourceSlug: string) => void;
+  clearFaceProfile: () => void;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
@@ -88,12 +102,24 @@ function readStoredBiometrics(): AnthropometricVector | null {
   }
 }
 
+function readStoredFaceProfile(): AthleteFaceProfile | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(FACE_PROFILE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as AthleteFaceProfile;
+  } catch {
+    return null;
+  }
+}
+
 export function AssessmentSessionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [state, setState] = useState(() => readStoredProfile());
   const [isLoading, setIsLoading] = useState(false);
   const [attempts, setAttempts] = useState<RecordedAttempt[]>([]);
   const [biometricBaseline, setBiometricBaseline] = useState<AnthropometricVector | null>(() => readStoredBiometrics());
+  const [faceProfile, setFaceProfile] = useState<AthleteFaceProfile | null>(() => readStoredFaceProfile());
 
   const lockBiometricBaseline = useCallback((vector: AnthropometricVector) => {
     setBiometricBaseline(vector);
@@ -117,6 +143,59 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
     }
   }, []);
 
+  const registerFaceCandidate = useCallback((vector: FacialBiometricVector, photoDataUrl?: string, sourceSlug?: string) => {
+    setFaceProfile((prev) => {
+      // If already locked from completed assessment 1, do not overwrite with candidate
+      if (prev?.isLocked) return prev;
+      const updated: AthleteFaceProfile = {
+        vector,
+        photoDataUrl: photoDataUrl || prev?.photoDataUrl,
+        athleteName: prev?.athleteName || vector.athleteName || state.profile.name || "Athlete",
+        sourceAssessmentSlug: sourceSlug || prev?.sourceAssessmentSlug || "assessment",
+        enrolledAt: prev?.enrolledAt || new Date().toISOString(),
+        isLocked: false,
+      };
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(FACE_PROFILE_KEY, JSON.stringify(updated));
+        } catch {
+          /* ignore */
+        }
+      }
+      return updated;
+    });
+  }, [state.profile.name]);
+
+  const lockFaceProfile = useCallback((sourceSlug: string) => {
+    setFaceProfile((prev) => {
+      if (!prev) return null;
+      const locked: AthleteFaceProfile = {
+        ...prev,
+        sourceAssessmentSlug: sourceSlug,
+        isLocked: true,
+      };
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(FACE_PROFILE_KEY, JSON.stringify(locked));
+        } catch {
+          /* ignore */
+        }
+      }
+      return locked;
+    });
+  }, []);
+
+  const clearFaceProfile = useCallback(() => {
+    setFaceProfile(null);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem(FACE_PROFILE_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, []);
+
   // Synchronize profile with Supabase and authenticated user in real time
   useEffect(() => {
     let isMounted = true;
@@ -127,12 +206,14 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
         try {
           window.localStorage.removeItem(PROFILE_KEY);
           window.localStorage.removeItem(BIOMETRICS_KEY);
+          window.localStorage.removeItem(FACE_PROFILE_KEY);
         } catch {
           /* ignore */
         }
       }
       setState({ profile: DEFAULT_PROFILE, onboarded: false });
       setBiometricBaseline(null);
+      setFaceProfile(null);
       return;
     }
 
@@ -328,6 +409,10 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
       biometricBaseline,
       lockBiometricBaseline,
       clearBiometricBaseline,
+      faceProfile,
+      registerFaceCandidate,
+      lockFaceProfile,
+      clearFaceProfile,
     }),
     [
       state,
@@ -340,6 +425,10 @@ export function AssessmentSessionProvider({ children }: { children: ReactNode })
       biometricBaseline,
       lockBiometricBaseline,
       clearBiometricBaseline,
+      faceProfile,
+      registerFaceCandidate,
+      lockFaceProfile,
+      clearFaceProfile,
     ],
   );
 

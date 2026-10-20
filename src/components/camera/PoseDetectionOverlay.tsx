@@ -1,22 +1,25 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ClientPoseDetector, SKELETON_CONNECTIONS } from "@/lib/vision/pose-detector";
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
-import { CheckCircle, ShieldAlert, Sparkles, UserCheck, UserX, AlertTriangle } from "lucide-react";
+import { CheckCircle, ShieldAlert, Sparkles, UserCheck, UserX } from "lucide-react";
 import {
-  extractAnthropometricVector,
-  compareBiometrics,
-  type AnthropometricVector,
+  extractFacialVector,
+  compareFaceBiometrics,
+  captureFaceSnapshot,
+  type FacialBiometricVector,
   type BiometricMatchResult,
 } from "@/lib/vision/athlete-biometrics";
+import type { AthleteFaceProfile } from "@/lib/assessment-session";
 
 interface PoseDetectionOverlayProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   isRecording?: boolean;
   onPoseDetected?: (landmarks: NormalizedLandmark[]) => void;
   athleteName?: string;
-  biometricBaseline?: AnthropometricVector | null;
-  onBiometricBaselineExtracted?: (vector: AnthropometricVector) => void;
-  onBiometricComparison?: (result: BiometricMatchResult) => void;
+  isProctoringEnabled?: boolean; // false = Assessment 1 (Enrollment), true = Assessments 2-5 (Active Verification)
+  faceProfile?: AthleteFaceProfile | null;
+  onFaceCaptured?: (vector: FacialBiometricVector, photoDataUrl: string) => void;
+  onFaceComparison?: (result: BiometricMatchResult, candidateSnapshot?: string) => void;
   isMalpracticeActive?: boolean;
 }
 
@@ -25,9 +28,10 @@ export function PoseDetectionOverlay({
   isRecording = false,
   onPoseDetected,
   athleteName = "Athlete",
-  biometricBaseline,
-  onBiometricBaselineExtracted,
-  onBiometricComparison,
+  isProctoringEnabled = false,
+  faceProfile,
+  onFaceCaptured,
+  onFaceComparison,
   isMalpracticeActive = false,
 }: PoseDetectionOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -35,13 +39,14 @@ export function PoseDetectionOverlay({
   const animFrameRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number>(0);
   const frameCounterRef = useRef<number>(0);
-  const calibrationSamplesRef = useRef<AnthropometricVector[]>([]);
+  const faceStableCountRef = useRef<number>(0);
 
   const [isHumanDetected, setIsHumanDetected] = useState(false);
   const [nodesCount, setNodesCount] = useState(0);
   const [kneeAngle, setKneeAngle] = useState<number | null>(null);
   const [isFullBodyVisible, setIsFullBodyVisible] = useState(false);
   const [liveSimilarity, setLiveSimilarity] = useState<number | null>(null);
+  const [faceEnrolledSuccessfully, setFaceEnrolledSuccessfully] = useState(false);
 
   // Initialize MediaPipe PoseLandmarker
   useEffect(() => {
@@ -71,7 +76,6 @@ export function PoseDetectionOverlay({
       if (video && canvas && video.readyState >= 2) {
         const ctx = canvas.getContext("2d");
         if (ctx) {
-          // Synchronize canvas internal dimensions with actual video resolution
           const vWidth = video.videoWidth || 640;
           const vHeight = video.videoHeight || 480;
 
@@ -80,17 +84,12 @@ export function PoseDetectionOverlay({
             canvas.height = vHeight;
           }
 
-          // Always clear previous frame canvas
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-          // Enforce strictly monotonic timestamps for MediaPipe
           const frameTime = Math.max(timestamp, lastTimestampRef.current + 1);
           lastTimestampRef.current = frameTime;
 
-          // Detect live pose from video feed
           const rawLandmarks = detectorRef.current?.detectPose(video, frameTime) || null;
-
-          // Verify whether a genuine human is in frame
           const humanPresent = isValidHumanPose(rawLandmarks);
 
           if (humanPresent && rawLandmarks) {
@@ -99,41 +98,48 @@ export function PoseDetectionOverlay({
 
             frameCounterRef.current += 1;
 
-            // Extract biometric vector every 3 frames for anti-malpractice verification
+            // Process biometrics every 3 frames (~20 checks per second)
             if (frameCounterRef.current % 3 === 0) {
-              const vector = extractAnthropometricVector(rawLandmarks, athleteName);
-              if (vector) {
-                if (!biometricBaseline && onBiometricBaselineExtracted) {
-                  // Calibration: Collect 10 stable frame vectors to lock the baseline
-                  calibrationSamplesRef.current.push(vector);
-                  if (calibrationSamplesRef.current.length >= 10) {
-                    const samples = calibrationSamplesRef.current;
-                    const avgVector: AnthropometricVector = {
-                      shoulderToTorso: samples.reduce((acc, s) => acc + s.shoulderToTorso, 0) / samples.length,
-                      torsoToLeg: samples.reduce((acc, s) => acc + s.torsoToLeg, 0) / samples.length,
-                      femurToTibia: samples.reduce((acc, s) => acc + s.femurToTibia, 0) / samples.length,
-                      armToTorso: samples.reduce((acc, s) => acc + s.armToTorso, 0) / samples.length,
-                      shoulderToHip: samples.reduce((acc, s) => acc + s.shoulderToHip, 0) / samples.length,
-                      timestamp: Date.now(),
-                      athleteName,
-                    };
-                    onBiometricBaselineExtracted(avgVector);
+              const faceVec = extractFacialVector(rawLandmarks, athleteName);
+
+              if (!isProctoringEnabled) {
+                // ==========================================
+                // PHASE 1: ASSESSMENT #1 (REGISTRATION ONLY)
+                // ==========================================
+                if (faceVec) {
+                  faceStableCountRef.current += 1;
+                  // Capture high-quality face profile after 4 stable face frames
+                  if (faceStableCountRef.current >= 4 && !faceEnrolledSuccessfully) {
+                    const photo = captureFaceSnapshot(video, rawLandmarks);
+                    if (photo && onFaceCaptured) {
+                      onFaceCaptured(faceVec, photo);
+                      setFaceEnrolledSuccessfully(true);
+                    }
                   }
-                } else if (biometricBaseline && onBiometricComparison) {
-                  const comp = compareBiometrics(biometricBaseline, vector);
+                }
+                // NOTE: In Phase 1, onFaceComparison is NEVER called!
+              } else if (isProctoringEnabled && faceProfile?.vector && onFaceComparison) {
+                // ==========================================
+                // PHASE 2: ASSESSMENTS #2, 3, 4, 5 (VERIFICATION)
+                // ==========================================
+                if (faceVec) {
+                  const comp = compareFaceBiometrics(faceProfile.vector, faceVec);
                   setLiveSimilarity(comp.similarityScore);
-                  onBiometricComparison(comp);
+
+                  let proxySnapshot: string | undefined = undefined;
+                  if (!comp.isMatch) {
+                    proxySnapshot = captureFaceSnapshot(video, rawLandmarks) || undefined;
+                  }
+                  onFaceComparison(comp, proxySnapshot);
                 }
               }
             }
 
-            // Count valid visible nodes
             const visibleNodes = rawLandmarks.filter(
               (lm) => (lm.visibility ?? 1) >= 0.3
             ).length;
             setNodesCount(visibleNodes);
 
-            // Check full body coverage (head, hips, knees, ankles)
             const head = rawLandmarks[0];
             const leftHip = rawLandmarks[23];
             const rightHip = rawLandmarks[24];
@@ -203,7 +209,6 @@ export function PoseDetectionOverlay({
               ctx.restore();
             }
           } else {
-            // NO HUMAN DETECTED: Canvas stays completely clean, no ghost lines/dots
             setIsHumanDetected(false);
             setNodesCount(0);
             setKneeAngle(null);
@@ -222,7 +227,7 @@ export function PoseDetectionOverlay({
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [videoRef, isRecording, onPoseDetected]);
+  }, [videoRef, isRecording, onPoseDetected, isProctoringEnabled, faceProfile, onFaceCaptured, onFaceComparison, isMalpracticeActive, athleteName, faceEnrolledSuccessfully]);
 
   return (
     <div className="pointer-events-none absolute inset-0 size-full overflow-hidden">
@@ -256,30 +261,62 @@ export function PoseDetectionOverlay({
           )}
         </div>
 
-        {/* Biometric Identity Verification Badge */}
-        {biometricBaseline && isHumanDetected && (
+        {/* PHASE 1 (Assessment 1): Face Enrollment Badge */}
+        {!isProctoringEnabled && isHumanDetected && (
+          <div className="flex items-center gap-2 rounded-full bg-emerald-950/85 px-3 py-1.5 text-xs font-semibold text-emerald-300 border border-emerald-500/40 backdrop-blur-md shadow-lg animate-in fade-in">
+            {faceProfile?.photoDataUrl ? (
+              <img
+                src={faceProfile.photoDataUrl}
+                alt="Enrolled Face"
+                className="size-5 rounded-full object-cover border border-emerald-400"
+              />
+            ) : (
+              <UserCheck className="size-3.5 text-emerald-400" />
+            )}
+            <span>
+              {faceProfile?.photoDataUrl
+                ? `Face Enrolled: ${faceProfile.athleteName || athleteName}`
+                : "Registering Face Profile..."}
+            </span>
+          </div>
+        )}
+
+        {/* PHASE 2 (Assessments 2-5): Active Face Verification Badge */}
+        {isProctoringEnabled && faceProfile?.vector && isHumanDetected && (
           <div
-            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold backdrop-blur-md shadow-lg transition-all ${
+            className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold backdrop-blur-md shadow-lg transition-all ${
               isMalpracticeActive
-                ? "bg-red-950/80 text-red-300 border border-red-500/60 animate-pulse"
-                : "bg-emerald-950/80 text-emerald-300 border border-emerald-500/40"
+                ? "bg-red-950/90 text-red-300 border border-red-500/70 animate-pulse"
+                : "bg-emerald-950/85 text-emerald-300 border border-emerald-500/40"
             }`}
           >
+            {faceProfile?.photoDataUrl && (
+              <img
+                src={faceProfile.photoDataUrl}
+                alt="Registered Athlete"
+                className={`size-5 rounded-full object-cover border ${
+                  isMalpracticeActive ? "border-red-400" : "border-emerald-400"
+                }`}
+              />
+            )}
             {isMalpracticeActive ? (
               <>
                 <ShieldAlert className="size-3.5 text-red-400" />
-                <span>Malpractice: Proxy Detected {liveSimilarity !== null ? `(${Math.round(liveSimilarity * 100)}%)` : ""}</span>
+                <span>Malpractice: Unauthorized Person Detected</span>
               </>
             ) : (
               <>
                 <UserCheck className="size-3.5 text-emerald-400" />
-                <span>Identity Verified: {biometricBaseline.athleteName || athleteName}</span>
+                <span>
+                  Verified: {faceProfile.athleteName || athleteName}{" "}
+                  {liveSimilarity !== null ? `(${Math.round(liveSimilarity * 100)}%)` : ""}
+                </span>
               </>
             )}
           </div>
         )}
 
-        {/* Live Knee Angle Readout (Only visible when human is detected) */}
+        {/* Live Knee Angle Readout */}
         {isHumanDetected && kneeAngle !== null && (
           <div className="flex items-center gap-1.5 rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-semibold text-cyan-300 border border-cyan-500/40 backdrop-blur-md shadow-lg animate-in fade-in">
             <Sparkles className="size-3 text-cyan-400" />
@@ -314,29 +351,21 @@ export function PoseDetectionOverlay({
   );
 }
 
-/**
- * Validates that detected landmarks correspond to a genuine human presence in frame.
- */
 function isValidHumanPose(landmarks: NormalizedLandmark[] | null): boolean {
   if (!landmarks || landmarks.length < 25) return false;
 
-  // Key anatomical reference points
   const nose = landmarks[0];
   const leftShoulder = landmarks[11];
   const rightShoulder = landmarks[12];
   const leftHip = landmarks[23];
   const rightHip = landmarks[24];
 
-  // At least 2 primary landmarks must have solid visibility/presence
   const keyPoints = [nose, leftShoulder, rightShoulder, leftHip, rightHip];
   const visibleKeyCount = keyPoints.filter((p) => p && (p.visibility ?? 1) >= 0.4).length;
 
   return visibleKeyCount >= 2;
 }
 
-/**
- * Draws kinematic skeleton bones / edges connecting anatomical nodes.
- */
 function drawSkeletonEdges(
   ctx: CanvasRenderingContext2D,
   landmarks: NormalizedLandmark[],
@@ -353,7 +382,6 @@ function drawSkeletonEdges(
     const p1 = landmarks[conn.from];
     const p2 = landmarks[conn.to];
 
-    // Only draw edge if BOTH joints are detected with high confidence
     if (
       p1 &&
       p2 &&
@@ -365,7 +393,6 @@ function drawSkeletonEdges(
       const x2 = p2.x * width;
       const y2 = p2.y * height;
 
-      // Outer glow line
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
@@ -377,7 +404,6 @@ function drawSkeletonEdges(
       ctx.lineWidth = isMalpractice ? 7 : 6;
       ctx.stroke();
 
-      // Inner crisp bone line
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
@@ -394,9 +420,6 @@ function drawSkeletonEdges(
   ctx.restore();
 }
 
-/**
- * Draws glowing joint nodes on every tracked anatomical point.
- */
 function drawJointNodes(
   ctx: CanvasRenderingContext2D,
   landmarks: NormalizedLandmark[],
@@ -408,7 +431,6 @@ function drawJointNodes(
   ctx.save();
 
   landmarks.forEach((lm, idx) => {
-    // Only draw node if visibility threshold is met
     if ((lm.visibility ?? 1) >= 0.35) {
       const x = lm.x * width;
       const y = lm.y * height;
@@ -416,7 +438,6 @@ function drawJointNodes(
       const isMajorJoint = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28].includes(idx);
       const radius = isMajorJoint ? 5.5 : 3.5;
 
-      // Outer glow circle
       ctx.beginPath();
       ctx.arc(x, y, radius + 3, 0, 2 * Math.PI);
       ctx.fillStyle = isMalpractice
@@ -426,7 +447,6 @@ function drawJointNodes(
         : "rgba(6, 182, 212, 0.35)";
       ctx.fill();
 
-      // Inner solid node core
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, 2 * Math.PI);
       ctx.fillStyle = isMalpractice
@@ -440,7 +460,6 @@ function drawJointNodes(
       ctx.shadowBlur = isMalpractice ? 12 : 8;
       ctx.fill();
 
-      // Center bright pip
       ctx.beginPath();
       ctx.arc(x, y, 1.5, 0, 2 * Math.PI);
       ctx.fillStyle = "#ffffff";
@@ -451,9 +470,6 @@ function drawJointNodes(
   ctx.restore();
 }
 
-/**
- * Calculates joint angle between 3 points in 2D space.
- */
 function calculateAngle(p1: NormalizedLandmark, p2: NormalizedLandmark, p3: NormalizedLandmark): number {
   const radians =
     Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p1.y - p2.y, p1.x - p2.x);
