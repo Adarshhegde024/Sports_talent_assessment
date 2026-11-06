@@ -25,6 +25,13 @@ export function SiteFooter() {
             >
               Methodology
             </a>
+            <a
+              href="/SportSense_AI_Pro_Project_Guide.pdf"
+              download="SportSense_AI_Pro_Project_Guide.pdf"
+              className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+            >
+              📄 Project Guide (PDF)
+            </a>
           </div>
           <p className="label-meta">© {new Date().getFullYear()} SportSense AI</p>
         </div>

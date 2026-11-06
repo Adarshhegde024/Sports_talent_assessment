@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Camera, Edit3, Sparkles, TrendingUp, Trophy, UserCog } from "lucide-react";
+import { ArrowRight, Camera, Edit3, FileDown, Sparkles, TrendingUp, Trophy, UserCog } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { MetricBar } from "@/components/metrics/MetricBar";
@@ -51,11 +51,18 @@ function Dashboard() {
 
   const completedRuns = history.data?.filter((run) => run.status === "completed") ?? [];
   const completedCount = completedRuns.length;
-  const displayName = profile?.name || (user?.user_metadata?.["full_name"] as string) || user?.email?.split("@")[0] || "Athlete";
+  const displayName =
+    profile?.name ||
+    (user?.user_metadata?.["full_name"] as string) ||
+    user?.email?.split("@")[0] ||
+    "Athlete";
 
   // Calculate best jump from history
   const bestJump = history.data?.reduce((max, run) => {
-    if (run.assessmentId === "vertical-jump" || run.assessmentName?.toLowerCase().includes("jump")) {
+    if (
+      run.assessmentId === "vertical-jump" ||
+      run.assessmentName?.toLowerCase().includes("jump")
+    ) {
       const val = run.result ? parseFloat(run.result) : 0;
       return val > max ? val : max;
     }
@@ -63,9 +70,7 @@ function Dashboard() {
   }, 0);
 
   // Dynamic next recommended assessment calculation
-  const completedSlugs = new Set(
-    completedRuns.map((r) => r.assessmentId)
-  );
+  const completedSlugs = new Set(completedRuns.map((r) => r.assessmentId));
   const nextAssessment =
     ASSESSMENTS.find((a) => !completedSlugs.has(a.id) && !completedSlugs.has(a.slug)) ||
     ASSESSMENTS[0]!;
@@ -80,14 +85,40 @@ function Dashboard() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="label-meta text-emerald-600 dark:text-emerald-400 font-bold">Athlete Overview</p>
+            <p className="label-meta text-emerald-600 dark:text-emerald-400 font-bold">
+              Athlete Overview
+            </p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">
               Welcome back, {displayName}
             </h1>
           </div>
           <div className="flex items-center gap-2.5">
-            <Button asChild size="lg" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md">
-              <Link to="/assessments/$slug" params={{ slug: "vertical-jump" }} className="flex items-center gap-2">
+            <Button
+              asChild
+              variant="outline"
+              size="lg"
+              className="rounded-xl border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-semibold"
+            >
+              <a
+                href="/SportSense_AI_Pro_Project_Guide.pdf"
+                download="SportSense_AI_Pro_Project_Guide.pdf"
+                className="flex items-center gap-2"
+                title="Download Official Technical Architecture & Logic Guide"
+              >
+                <FileDown className="size-4" />
+                <span>Project Guide (PDF)</span>
+              </a>
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-md"
+            >
+              <Link
+                to="/assessments/$slug"
+                params={{ slug: "vertical-jump" }}
+                className="flex items-center gap-2"
+              >
                 <Camera className="size-4" />
                 <span>Start Assessment</span>
               </Link>
@@ -96,7 +127,11 @@ function Dashboard() {
         </div>
 
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
-          <StatCard label="Assessments Completed" value={String(completedCount)} suffix="sessions" />
+          <StatCard
+            label="Assessments Completed"
+            value={String(completedCount)}
+            suffix="sessions"
+          />
           <StatCard
             label="Best Jump Height"
             value={bestJump ? bestJump.toFixed(1) : "0"}
@@ -120,7 +155,8 @@ function Dashboard() {
                   Complete Your Athlete Profile
                 </h3>
                 <p className="mt-0.5 text-xs text-amber-800/80 dark:text-amber-300/80">
-                  Fill in your age, height, and fitness level so the AI can calibrate your movement metrics and predict your optimal sporting pathways.
+                  Fill in your age, height, and fitness level so the AI can calibrate your movement
+                  metrics and predict your optimal sporting pathways.
                 </p>
               </div>
             </div>
@@ -166,7 +202,9 @@ function Dashboard() {
 
             <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {metrics.isLoading
-                ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)
+                ? Array.from({ length: 5 }).map((_, i) => (
+                    <Skeleton key={i} className="h-20 rounded-xl" />
+                  ))
                 : metrics.data?.map((metric) => (
                     <MetricBar
                       key={metric.key}
@@ -179,7 +217,8 @@ function Dashboard() {
 
             {isMetricsAllZero && !metrics.isLoading && (
               <p className="mt-4 text-[11px] text-muted-foreground border-t border-border/60 pt-3">
-                💡 Scores update automatically after you complete your first video movement assessment.
+                💡 Scores update automatically after you complete your first video movement
+                assessment.
               </p>
             )}
           </section>
@@ -220,7 +259,8 @@ function Dashboard() {
                   <Sparkles className="mx-auto size-6 text-muted-foreground" />
                   <p className="mt-2 text-xs font-semibold">No assessments recorded yet</p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Record your first vertical jump session to measure explosive power and calibrate your profile.
+                    Record your first vertical jump session to measure explosive power and calibrate
+                    your profile.
                   </p>
                 </div>
               )}
@@ -248,7 +288,11 @@ function Dashboard() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/20 border border-emerald-500/30 px-3 py-1 text-xs font-bold text-emerald-300">
               <Trophy className="size-3.5 text-amber-400" />
-              <span>{allTestsDone ? "Comprehensive Talent Discovery Complete" : `Talent Battery: ${completedSlugs.size} of 5 Completed`}</span>
+              <span>
+                {allTestsDone
+                  ? "Comprehensive Talent Discovery Complete"
+                  : `Talent Battery: ${completedSlugs.size} of 5 Completed`}
+              </span>
             </div>
             {allTestsDone && (
               <span className="rounded-full bg-emerald-500/20 px-3 py-0.5 text-xs font-semibold text-emerald-300 border border-emerald-500/30">
@@ -270,7 +314,10 @@ function Dashboard() {
 
           <div className="mt-6 flex flex-wrap gap-3">
             {allTestsDone ? (
-              <Button asChild className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold shadow-md active:scale-95 transition-all">
+              <Button
+                asChild
+                className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold shadow-md active:scale-95 transition-all"
+              >
                 <Link to="/talent-report">
                   <Trophy className="size-4 mr-1.5" />
                   View Final Sport Recommendation & Practice Plan
@@ -278,22 +325,29 @@ function Dashboard() {
                 </Link>
               </Button>
             ) : (
-              <Button asChild className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold shadow-md active:scale-95 transition-all">
+              <Button
+                asChild
+                className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold shadow-md active:scale-95 transition-all"
+              >
                 <Link to="/assessments/$slug" params={{ slug: nextAssessment.slug }}>
                   Take Next Test: {nextAssessment.name}
                   <ArrowRight className="size-4 ml-1.5" />
                 </Link>
               </Button>
             )}
-            <Button asChild variant="outline" className="rounded-xl border-white/20 bg-white/5 text-white hover:bg-white/10">
-              <Link to="/talent-report">
-                View Talent Discovery Report
-              </Link>
+            <Button
+              asChild
+              variant="outline"
+              className="rounded-xl border-white/20 bg-white/5 text-white hover:bg-white/10"
+            >
+              <Link to="/talent-report">View Talent Discovery Report</Link>
             </Button>
-            <Button asChild variant="outline" className="rounded-xl border-white/20 bg-white/5 text-white hover:bg-white/10">
-              <Link to="/assessments">
-                Browse All 5 Tests
-              </Link>
+            <Button
+              asChild
+              variant="outline"
+              className="rounded-xl border-white/20 bg-white/5 text-white hover:bg-white/10"
+            >
+              <Link to="/assessments">Browse All 5 Tests</Link>
             </Button>
           </div>
         </section>

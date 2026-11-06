@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRight, Menu, X } from "lucide-react";
+import { ArrowRight, FileDown, Menu, X } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,15 @@ export function SiteHeader() {
                 {link.label}
               </a>
             ))}
+            <a
+              href="/SportSense_AI_Pro_Project_Guide.pdf"
+              download="SportSense_AI_Pro_Project_Guide.pdf"
+              className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all shadow-xs"
+              title="Download Technical Architecture & Logic Guide PDF"
+            >
+              <FileDown className="size-3.5" />
+              <span>Project Guide (PDF)</span>
+            </a>
           </nav>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -43,9 +52,7 @@ export function SiteHeader() {
             size="sm"
             className="hidden sm:inline-flex text-sm font-medium text-foreground hover:text-emerald-500"
           >
-            <Link to={user ? "/dashboard" : "/login"}>
-              {user ? "Dashboard" : "Log in"}
-            </Link>
+            <Link to={user ? "/dashboard" : "/login"}>{user ? "Dashboard" : "Log in"}</Link>
           </Button>
           {user ? (
             <Button
@@ -53,7 +60,11 @@ export function SiteHeader() {
               size="sm"
               className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-all hover:shadow-md text-xs sm:text-sm px-3 sm:px-4"
             >
-              <Link to="/assessments/$slug" params={{ slug: "vertical-jump" }} className="flex items-center gap-1.5">
+              <Link
+                to="/assessments/$slug"
+                params={{ slug: "vertical-jump" }}
+                className="flex items-center gap-1.5"
+              >
                 <span>Start Assessment</span>
                 <ArrowRight className="size-3.5" />
               </Link>
@@ -97,6 +108,14 @@ export function SiteHeader() {
                 {link.label}
               </a>
             ))}
+            <a
+              href="/SportSense_AI_Pro_Project_Guide.pdf"
+              download="SportSense_AI_Pro_Project_Guide.pdf"
+              className="flex items-center justify-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-2.5 text-sm font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-all"
+            >
+              <FileDown className="size-4" />
+              <span>Download Project Guide (PDF)</span>
+            </a>
             <div className="border-t border-border pt-4 flex flex-col gap-3">
               <Button asChild variant="outline" className="w-full justify-center">
                 <Link to={user ? "/dashboard" : "/login"} onClick={() => setMobileMenuOpen(false)}>
@@ -104,13 +123,23 @@ export function SiteHeader() {
                 </Link>
               </Button>
               {user ? (
-                <Button asChild className="w-full justify-center bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <Link to="/assessments/$slug" params={{ slug: "vertical-jump" }} onClick={() => setMobileMenuOpen(false)}>
+                <Button
+                  asChild
+                  className="w-full justify-center bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Link
+                    to="/assessments/$slug"
+                    params={{ slug: "vertical-jump" }}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
                     Start Assessment →
                   </Link>
                 </Button>
               ) : (
-                <Button asChild className="w-full justify-center bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Button
+                  asChild
+                  className="w-full justify-center bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
                   <Link to="/login" onClick={() => setMobileMenuOpen(false)}>
                     Start Assessment →
                   </Link>
