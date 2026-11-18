@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Camera, Edit3, FileDown, Sparkles, TrendingUp, Trophy, UserCog } from "lucide-react";
+import { ArrowRight, Camera, Edit3, Sparkles, TrendingUp, Trophy, UserCog } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { MetricBar } from "@/components/metrics/MetricBar";
@@ -93,22 +93,6 @@ function Dashboard() {
             </h1>
           </div>
           <div className="flex items-center gap-2.5">
-            <Button
-              asChild
-              variant="outline"
-              size="lg"
-              className="rounded-xl border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 font-semibold"
-            >
-              <a
-                href="/SportSense_AI_Pro_Project_Guide.pdf"
-                download="SportSense_AI_Pro_Project_Guide.pdf"
-                className="flex items-center gap-2"
-                title="Download Official Technical Architecture & Logic Guide"
-              >
-                <FileDown className="size-4" />
-                <span>Project Guide (PDF)</span>
-              </a>
-            </Button>
             <Button
               asChild
               size="lg"
